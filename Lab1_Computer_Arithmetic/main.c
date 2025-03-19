@@ -70,15 +70,35 @@ int main() {
         f4_long_double[i] = function4_long_double(x_long_double);
     }
 
-    // Saving results to a CSV file
-    save_results("results.csv", values_x,
+    // Using new utilities to save results to separate files and create more comprehensive analysis
+    const char* base_name = "separate_results";
+    save_results_to_separate_files(base_name, values_x,
                  f1_float, f1_double, f1_long_double,
                  f2_float, f2_double, f2_long_double,
                  f3_float, f3_double, f3_long_double,
                  f4_float, f4_double, f4_long_double,
                  N);
 
-    // Generating scripts for gnuplot
+    // Generate error analysis
+    generate_error_analysis(base_name, values_x,
+                 f1_float, f1_double, f1_long_double,
+                 f2_float, f2_double, f2_long_double,
+                 f3_float, f3_double, f3_long_double,
+                 f4_float, f4_double, f4_long_double,
+                 N);
+
+    // Generate individual function scripts comparing all types
+    for (int i = 1; i <= 4; i++) {
+        generate_gnuplot_script_function_all_types(base_name, i);
+    }
+
+    // Generate multiplot and master plot scripts
+    generate_multiplot_script(base_name, 4, 3);
+
+    // Generate individual plots for each function and variable type combination
+    generate_individual_plots(base_name, 4);
+
+    // Keep the original scripts for backward compatibility
     // Scripts for individual functions
     for (int i = 1; i <= 4; i++) {
         char file_name[100];
@@ -97,7 +117,7 @@ int main() {
     // Checking the differences between functions for x = 1.0
     int idx_middle = N / 2; // Index for x = 1.0
 
-    printf("\nWartości dla x = %.10f:\n", (double)values_x[idx_middle]);
+    printf("\nValues for x = %.10f:\n", (double)values_x[idx_middle]);
     printf("Function 1 (float): %.10e\n", (double)f1_float[idx_middle]);
     printf("Function 1 (double): %.10e\n", f1_double[idx_middle]);
     printf("Function 1 (long double): %.10Le\n", f1_long_double[idx_middle]);
@@ -122,6 +142,8 @@ int main() {
     free(f4_float); free(f4_double); free(f4_long_double);
 
     printf("\nExecuting gnuplot scripts...\n");
+
+    // Execute original gnuplot scripts
     system("gnuplot chart_f1.gp");
     system("gnuplot chart_f2.gp");
     system("gnuplot chart_f3.gp");
@@ -129,6 +151,23 @@ int main() {
     system("gnuplot chart_float.gp");
     system("gnuplot chart_double.gp");
     system("gnuplot chart_long_double.gp");
+
+    // Execute new gnuplot scripts
+    system("gnuplot chart_f1_all_types.gp");
+    system("gnuplot chart_f2_all_types.gp");
+    system("gnuplot chart_f3_all_types.gp");
+    system("gnuplot chart_f4_all_types.gp");
+    system("gnuplot chart_collage.gp");
+    system("gnuplot chart_error_analysis.gp");
+
+    // Execute individual plot scripts
+    for (int f = 1; f <= 4; f++) {
+        for (int t = 0; t < 3; t++) {
+            char script_name[100];
+            sprintf(script_name, "gnuplot chart_f%d_%s.gp", f, (t == 0) ? "float" : (t == 1) ? "double" : "long_double");
+            system(script_name);
+        }
+    }
 
     printf("Calculations and graph generation completed.\n");
 

@@ -1,20 +1,20 @@
-# Makefile dla projektu
+# Makefile of the project
 CC = gcc
 CFLAGS = -Wall -Wextra -O2 -lm
 
 all: program
 
-program: main.o funkcje.o narzedzia.o
-	$(CC) $(CFLAGS) -o program main.o funkcje.o narzedzia.o -lm
+program: main.o functions.o utilities.o
+	$(CC) $(CFLAGS) -o program main.o functions.o utilities.o -lm
 
-main.o: main.c funkcje.h narzedzia.h
+main.o: main.c functions.h utilities.h
 	$(CC) $(CFLAGS) -c main.c
 
-funkcje.o: funkcje.c funkcje.h
-	$(CC) $(CFLAGS) -c funkcje.c
+functions.o: functions.c functions.h
+	$(CC) $(CFLAGS) -c functions.c
 
-narzedzia.o: narzedzia.c narzedzia.h
-	$(CC) $(CFLAGS) -c narzedzia.c
+utilities.o: utilities.c utilities.h
+	$(CC) $(CFLAGS) -c utilities.c
 
 clean:
 	rm -f *.o program *.csv *.png *.gp
