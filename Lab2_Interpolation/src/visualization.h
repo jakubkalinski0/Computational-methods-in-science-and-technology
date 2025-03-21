@@ -1,8 +1,9 @@
-//
-// Created by Jakub Kalinski on 21.03.2025.
-//
-
 #ifndef VISUALIZATION_H
 #define VISUALIZATION_H
 
-#endif //VISUALIZATION_H
+#include "interpolation.h"
+
+// Function declaration
+void saveDataForPlot(InterpolationData *data, double *dd);
+
+#endif // VISUALIZATION_H
