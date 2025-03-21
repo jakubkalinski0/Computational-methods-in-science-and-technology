@@ -7,7 +7,7 @@
 // Function to initialize data
 void initData(InterpolationData *data) {
     printf("Enter number of nodes: ");
-    scanf_s("%d", &data->n);
+    scanf("%d", &data->n);
     
     if (data->n > MAX_NODES) {
         printf("Maximum number of nodes exceeded. Setting n = %d\n", MAX_NODES);
@@ -15,20 +15,20 @@ void initData(InterpolationData *data) {
     }
     
     printf("Enter interval [a,b] (e.g. -1 1): ");
-    scanf_s("%lf %lf", &data->a, &data->b);
+    scanf("%lf %lf", &data->a, &data->b);
     
     printf("Choose node distribution (0 - uniform, 1 - Chebyshev): ");
-    scanf_s("%d", &data->node_type);
+    scanf("%d", &data->node_type);
     
     printf("Choose interpolation method (0 - Lagrange, 1 - Newton): ");
-    scanf_s("%d", &data->method);
+    scanf("%d", &data->method);
     
     generateNodes(data);
     
     printf("Enter function values at nodes:\n");
     for (int i = 0; i < data->n; i++) {
         printf("f(%.4f) = ", data->x[i]);
-        scanf_s("%lf", &data->y[i]);
+        scanf("%lf", &data->y[i]);
     }
 }
 
