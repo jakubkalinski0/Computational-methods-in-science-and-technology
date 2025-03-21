@@ -43,7 +43,8 @@ int main() {
         }
     }
     
-    // Save data for visualization
+    // Always save data and create plot
+    printf("\nCreating visualization...\n");
     saveDataForPlot(&data, dividedDifferences);
     
     // Free memory
