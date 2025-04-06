@@ -1,28 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h> // Needed for strcmp if more complex arg parsing were added
+#include <string.h>
+#include <math.h> // Dla fabsf w sprawdzaniu indeksu
 #include "../include/functions.h"
 #include "../include/utilities.h"
 
-int main(int argc, char *argv[]) { // Accept command line arguments
-    // --- Argument Validation ---
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s <data_directory> <plots_directory>\n", argv[0]);
-        fprintf(stderr, "Example: %s data plots\n", argv[0]);
+int main(int argc, char *argv[]) {
+    // --- Argument Validation for THREE directories ---
+    if (argc != 4) { // Oczekuje nazwy programu + 3 ścieżek = 4 argumenty
+        fprintf(stderr, "Usage: %s <data_directory> <scripts_directory> <plots_directory>\n", argv[0]);
+        fprintf(stderr, "Example: %s data scripts plots\n", argv[0]);
         return 1;
     }
     const char* dataDir = argv[1];
-    const char* plotsDir = argv[2];
+    const char* gpScriptsDir = argv[2]; // Katalog na .gp
+    const char* plotImagesDir = argv[3]; // Katalog na .png
 
     printf("Using Data Directory: %s\n", dataDir);
-    printf("Using Plots Directory: %s\n", plotsDir);
-    // --------------------------
+    printf("Using GP Scripts Directory: %s\n", gpScriptsDir);
+    printf("Using Plot Images Directory: %s\n", plotImagesDir);
+    // -------------------------------------------------
 
-    const int N = 101;  // Number of points
+    const int N = 101;
     const float xmin = 0.99f;
     const float xmax = 1.01f;
 
-    // --- Memory Allocation (no changes) ---
+    // --- Memory Allocation ---
     float* values_x = (float*)malloc(N * sizeof(float));
     float* f1_float = (float*)malloc(N * sizeof(float));
     double* f1_double = (double*)malloc(N * sizeof(double));
@@ -37,7 +40,7 @@ int main(int argc, char *argv[]) { // Accept command line arguments
     double* f4_double = (double*)malloc(N * sizeof(double));
     long double* f4_long_double = (long double*)malloc(N * sizeof(long double));
 
-    // --- Memory Allocation Check (no changes) ---
+    // --- Memory Allocation Check ---
     if (!values_x || !f1_float || !f1_double || !f1_long_double ||
         !f2_float || !f2_double || !f2_long_double ||
         !f3_float || !f3_double || !f3_long_double ||
@@ -47,13 +50,13 @@ int main(int argc, char *argv[]) { // Accept command line arguments
         return 1;
     }
 
-    // --- Generating x values (no changes) ---
+    // --- Generating x values ---
     float step = (xmax - xmin) / (N - 1);
     for (int i = 0; i < N; i++) {
         values_x[i] = xmin + i * step;
     }
 
-    // --- Calculating function values (no changes) ---
+    // --- Calculating function values ---
     for (int i = 0; i < N; i++) {
         float x_float = values_x[i];
         double x_double = (double)x_float;
@@ -76,56 +79,56 @@ int main(int argc, char *argv[]) { // Accept command line arguments
         f4_long_double[i] = function4_long_double(x_long_double);
     }
 
-    // --- Use utilities to save results and generate scripts, passing directories ---
-    const char* base_name_sep = "separate_results"; // Basename for separate files
-    const char* base_name_orig = "results"; // Basename for original combined file
+    // --- Use utilities, passing all necessary directory paths ---
+    const char* base_name_sep = "separate_results";
+    const char* base_name_orig = "results";
 
     printf("\n--- Generating Data Files and Plot Scripts ---\n");
 
-    // Save data to separate CSV files (will also call original save_results)
+    // Save data (only needs dataDir)
     save_results_to_separate_files(dataDir, base_name_sep, base_name_orig, values_x,
-                 f1_float, f1_double, f1_long_double,
-                 f2_float, f2_double, f2_long_double,
-                 f3_float, f3_double, f3_long_double,
-                 f4_float, f4_double, f4_long_double,
-                 N);
+                                   f1_float, f1_double, f1_long_double,
+                                   f2_float, f2_double, f2_long_double,
+                                   f3_float, f3_double, f3_long_double,
+                                   f4_float, f4_double, f4_long_double,
+                                   N);
 
-    // Generate error analysis CSV and script
-    generate_error_analysis(dataDir, plotsDir, base_name_sep, values_x,
-                 f1_float, f1_double, f1_long_double,
-                 f2_float, f2_double, f2_long_double,
-                 f3_float, f3_double, f3_long_double,
-                 f4_float, f4_double, f4_long_double,
-                 N);
+    // Generate error analysis (needs dataDir for CSV, gpScriptsDir for .gp, plotImagesDir for output in .gp)
+    generate_error_analysis(dataDir, gpScriptsDir, plotImagesDir, base_name_sep, values_x,
+                            f1_float, f1_double, f1_long_double,
+                            f2_float, f2_double, f2_long_double,
+                            f3_float, f3_double, f3_long_double,
+                            f4_float, f4_double, f4_long_double,
+                            N);
 
-    // Generate scripts comparing all types for each function
+    // Generate scripts comparing all types (needs all 3 dirs)
     for (int i = 1; i <= 4; i++) {
-        generate_gnuplot_script_function_all_types(dataDir, plotsDir, base_name_sep, i);
+        generate_gnuplot_script_function_all_types(dataDir, gpScriptsDir, plotImagesDir, base_name_sep, i);
     }
 
-    // Generate multiplot collage script
-    generate_multiplot_script(dataDir, plotsDir, base_name_sep, 4, 3);
+    // Generate multiplot collage script (needs all 3 dirs)
+    generate_multiplot_script(dataDir, gpScriptsDir, plotImagesDir, base_name_sep, 4, 3);
 
-    // Generate individual plots script for each func/type combination
-    generate_individual_plots(dataDir, plotsDir, base_name_sep, 4);
+    // Generate individual plots scripts (needs all 3 dirs)
+    generate_individual_plots(dataDir, gpScriptsDir, plotImagesDir, base_name_sep, 4);
 
-    // Generate original format scripts (using the combined results.csv)
+    // Generate original format scripts (needs all 3 dirs)
     for (int i = 1; i <= 4; i++) {
-        generate_gnuplot_script(dataDir, plotsDir, base_name_orig, i);
+        generate_gnuplot_script(dataDir, gpScriptsDir, plotImagesDir, base_name_orig, i);
     }
-    generate_gnuplot_script_type(dataDir, plotsDir, base_name_orig, "float", 0);
-    generate_gnuplot_script_type(dataDir, plotsDir, base_name_orig, "double", 1);
-    generate_gnuplot_script_type(dataDir, plotsDir, base_name_orig, "long_double", 2);
+    generate_gnuplot_script_type(dataDir, gpScriptsDir, plotImagesDir, base_name_orig, "float", 0);
+    generate_gnuplot_script_type(dataDir, gpScriptsDir, plotImagesDir, base_name_orig, "double", 1);
+    generate_gnuplot_script_type(dataDir, gpScriptsDir, plotImagesDir, base_name_orig, "long_double", 2);
 
     printf("\n--- Data and Script Generation Complete ---\n");
 
-    // --- Comparison of results (no changes) ---
+    // --- Comparison of results ---
     printf("\nComparison of results between functions and variable types:\n");
-    int idx_middle = N / 2; // Index for x potentially near 1.0
+    int idx_middle = N / 2;
     if (N % 2 == 1 && fabsf(values_x[idx_middle] - 1.0f) < step / 2.0f) {
          printf("\nValues for x = %.10f (index %d):\n", (double)values_x[idx_middle], idx_middle);
     } else {
-        idx_middle = -1; // Indicate 1.0 is not exactly hit or range is different
+        idx_middle = -1;
         printf("\nNote: x=1.0 might not be exactly calculated. Showing results near the middle.\n");
         idx_middle = N / 2;
         printf("\nValues for x = %.10f (index %d):\n", (double)values_x[idx_middle], idx_middle);
@@ -142,14 +145,13 @@ int main(int argc, char *argv[]) { // Accept command line arguments
             (double)f4_float[idx_middle], f4_double[idx_middle], f4_long_double[idx_middle]);
     }
 
-    // --- Freeing up memory (no changes) ---
+    // --- Freeing up memory ---
     free(values_x);
     free(f1_float); free(f1_double); free(f1_long_double);
     free(f2_float); free(f2_double); free(f2_long_double);
     free(f3_float); free(f3_double); free(f3_long_double);
     free(f4_float); free(f4_double); free(f4_long_double);
 
-    // --- Remove system calls to gnuplot ---
     printf("\nTo generate plots, run: make plots\n");
 
     return 0;
