@@ -1,5 +1,4 @@
-/* functions.c */
-#include "functions.h"
+#include "../include/functions.h"
 #include <math.h>
 
 // Function 1: f(x) = x^8 - 8x^7 + 28x^6 - 56x^5 + 70x^4 - 56x^3 + 28x^2 - 8x + 1
