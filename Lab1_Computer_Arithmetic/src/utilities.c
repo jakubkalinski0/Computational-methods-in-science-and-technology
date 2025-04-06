@@ -1,14 +1,13 @@
+/**
+* @file utilities.c
+ * @brief Implementation of utility functions for data saving and Gnuplot script generation.
+ *        Handles file I/O, path construction, and formatting for CSV and Gnuplot files.
+ */
 #include "../include/utilities.h"
 #include <stdio.h>  // For file operations (fopen, fprintf, fclose, snprintf, perror)
 #include <stdlib.h> // For general utilities (e.g., exit - though not used directly here)
 #include <string.h> // For string manipulation (snprintf)
 #include <math.h>   // For fabsl, isnan (requires C99/C11 or later for isnan)
-
-/**
- * @file utilities.c
- * @brief Implementation of utility functions for data saving and Gnuplot script generation.
- *        Handles file I/O, path construction, and formatting for CSV and Gnuplot files.
- */
 
 /**
  * @brief Helper function to safely open a file.

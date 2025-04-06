@@ -1,9 +1,3 @@
-/* utilities.h */
-#ifndef UTILITIES_H
-#define UTILITIES_H
-
-#include <math.h> // Included for potential use by implementations, e.g., NAN, fabs
-
 /**
  * @file utilities.h
  * @brief Header file containing declarations for utility functions.
@@ -11,6 +5,10 @@
  *        and generating Gnuplot scripts for visualization and error analysis.
  *        Functions require directory paths for input data, output scripts, and plot images.
  */
+#ifndef UTILITIES_H
+#define UTILITIES_H
+
+#include <math.h> // Included for potential use by implementations, e.g., NAN, fabs
 
 // Define buffer size for constructing file paths to avoid magic numbers
 #define FILE_PATH_BUFFER_SIZE 256

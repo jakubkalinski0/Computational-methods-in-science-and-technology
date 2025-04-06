@@ -1,12 +1,5 @@
-#include <stdio.h>     // For standard I/O (printf, fprintf)
-#include <stdlib.h>    // For memory allocation (malloc, free) and exit codes
-#include <string.h>    // Potentially useful for string operations (not directly used here)
-#include <math.h>      // For fabsf (absolute value of float) used in index check
-#include "../include/functions.h" // Include function declarations
-#include "../include/utilities.h" // Include utility function declarations (saving, plotting)
-
 /**
- * @file main.c
+* @file main.c
  * @brief Main program to calculate and compare results of different mathematical functions
  *        using float, double, and long double precision.
  *        It generates data points, computes function values, saves results to CSV files,
@@ -15,6 +8,12 @@
  * Usage: ./computer_arithmetic <data_directory> <scripts_directory> <plots_directory>
  * Example: ./bin/computer_arithmetic data scripts plots
  */
+#include <stdio.h>     // For standard I/O (printf, fprintf)
+#include <stdlib.h>    // For memory allocation (malloc, free) and exit codes
+#include <string.h>    // Potentially useful for string operations (not directly used here)
+#include <math.h>      // For fabsf (absolute value of float) used in index check
+#include "../include/functions.h" // Include function declarations
+#include "../include/utilities.h" // Include utility function declarations (saving, plotting)
 
 int main(int argc, char *argv[]) {
     // --- Argument Validation for THREE directories ---

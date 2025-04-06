@@ -1,7 +1,3 @@
-/* functions.h */
-#ifndef FUNCTIONS_H
-#define FUNCTIONS_H
-
 /**
  * @file functions.h
  * @brief Header file containing declarations for various mathematical functions
@@ -9,6 +5,8 @@
  *        These functions are designed to compare numerical stability and performance
  *        of different calculation methods and precisions.
  */
+#ifndef FUNCTIONS_H
+#define FUNCTIONS_H
 
 // --- Function 1: Direct Polynomial Evaluation ---
 // Calculates f(x) = x^8 - 8x^7 + 28x^6 - 56x^5 + 70x^4 - 56x^3 + 28x^2 - 8x + 1

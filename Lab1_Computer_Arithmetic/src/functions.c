@@ -1,11 +1,11 @@
-#include "../include/functions.h"
-#include <math.h> // Required for powf, pow, powl, expf, exp, expl, logf, log, logl, fabsf, fabs, fabsl, NAN
-
 /**
- * @file functions.c
+* @file functions.c
  * @brief Implementation of various mathematical functions with different
  *        floating-point precisions (float, double, long double).
  */
+#include "../include/functions.h"
+#include <math.h> // Required for powf, pow, powl, expf, exp, expl, logf, log, logl, fabsf, fabs, fabsl, NAN
+
 
 /**
  * ---------------------------------------------------------------------------------------------------------------------

@@ -106,6 +106,12 @@ The project uses a Makefile for easy management. Open your terminal in the proje
     This performs the `make run` steps (compiling and running the C code to generate data/scripts) and *then* automatically executes all the generated Gnuplot scripts (`*.gp`) found in the `scripts/` directory. This step generates:
     *   PNG plot images in the `plots/` directory.
 
+4.  **Display Help:**
+    ```bash
+    make help
+    ```
+    Shows a summary of available Makefile commands.
+
 ## Output Files
 
 After running `make plots`, you will find the following generated files:
