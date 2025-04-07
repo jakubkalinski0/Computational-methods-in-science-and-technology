@@ -90,8 +90,6 @@ int main() {
     // Max size needed is maxNodes
     double nodes[MAX_NODES];   // Stores x-coordinates of interpolation nodes for current 'n'
     double values[MAX_NODES];  // Stores y-coordinates (f(nodes)) for current 'n'
-    // Note: Derivatives are not needed for Lagrange/Newton, only for Hermite interpolation
-    // double derivatives[MAX_NODES];
 
     // Array to store the interpolated y-values at the plotting points 'x'
     double y_interp[numPoints];
@@ -182,23 +180,20 @@ int main() {
         newton_chebyshev_errors[n-1] = error_nc.max_error;
         newton_chebyshev_mse[n-1] = error_nc.mean_squared_error;
 
-        // --- Print Progress/Results Periodically ---
-        // Display errors every 5 steps, for the first step (n=1), and for the last step
-        if (n % 5 == 0 || n == maxNodes || n == 1) {
-             printf("\nResults for Number of Nodes: %d\n", n);
-             printf("-----------------------------------\n");
-             printf("Maximum Absolute Errors:\n");
-             printf("  Lagrange (Uniform):   %.3e\n", lagrange_uniform_errors[n-1]);
-             printf("  Lagrange (Chebyshev): %.3e\n", lagrange_chebyshev_errors[n-1]);
-             printf("  Newton (Uniform):     %.3e\n", newton_uniform_errors[n-1]);
-             printf("  Newton (Chebyshev):   %.3e\n", newton_chebyshev_errors[n-1]);
+        // --- Print Progress/Results ---
+         printf("\nResults for Number of Nodes: %d\n", n);
+         printf("-----------------------------------\n");
+         printf("Maximum Absolute Errors:\n");
+         printf("  Lagrange (Uniform):   %.3e\n", lagrange_uniform_errors[n-1]);
+         printf("  Lagrange (Chebyshev): %.3e\n", lagrange_chebyshev_errors[n-1]);
+         printf("  Newton (Uniform):     %.3e\n", newton_uniform_errors[n-1]);
+         printf("  Newton (Chebyshev):   %.3e\n", newton_chebyshev_errors[n-1]);
 
-             printf("\nMean Squared Errors (MSE):\n");
-             printf("  Lagrange (Uniform):   %.3e\n", lagrange_uniform_mse[n-1]);
-             printf("  Lagrange (Chebyshev): %.3e\n", lagrange_chebyshev_mse[n-1]);
-             printf("  Newton (Uniform):     %.3e\n", newton_uniform_mse[n-1]);
-             printf("  Newton (Chebyshev):   %.3e\n", newton_chebyshev_mse[n-1]);
-        }
+         printf("\nMean Squared Errors (MSE):\n");
+         printf("  Lagrange (Uniform):   %.3e\n", lagrange_uniform_mse[n-1]);
+         printf("  Lagrange (Chebyshev): %.3e\n", lagrange_chebyshev_mse[n-1]);
+         printf("  Newton (Uniform):     %.3e\n", newton_uniform_mse[n-1]);
+         printf("  Newton (Chebyshev):   %.3e\n", newton_chebyshev_mse[n-1]);
     } // End of loop over 'n'
 
     // --- Post-Loop Processing ---

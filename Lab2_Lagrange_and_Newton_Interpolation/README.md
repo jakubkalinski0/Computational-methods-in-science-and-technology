@@ -52,7 +52,7 @@ gdzie `k=4`, `m=0.4`, `x in [-2*PI^2, PI^2]`
 *   Provides a **Makefile** for easy compilation, execution, data/script generation, plotting, and cleanup.
 
 ## 📁 Project Structure
-- 📁 **(Project Root)**
+- 📁 **Lab2_Lagrange_and_Newton_Interpolation/** – Main
     - 📁 **include/** – Header files (.h)
         - 📄 `common.h`
         - 📄 `error.h`

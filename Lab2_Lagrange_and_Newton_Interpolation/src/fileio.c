@@ -245,57 +245,59 @@ void generateGnuplotScript(int maxNodes) {
         return;
     }
 
-    // --- Common Gnuplot Settings for all plots in this script ---
-    fprintf(gnuplot_script, "set terminal png size 1200,800\n"); // Output format
-    fprintf(gnuplot_script, "set grid\n");                       // Enable grid
-    fprintf(gnuplot_script, "set key outside\n");                // Place legend outside plot area
-    fprintf(gnuplot_script, "set xlabel 'x'\n");                 // X-axis label
-    fprintf(gnuplot_script, "set ylabel 'f(x)'\n");              // Y-axis label
-    // Set axis ranges based on the function's behavior in the interval [a, b]
-    fprintf(gnuplot_script, "set xrange [%.2f:%.2f]\n", a, b);    // Use interval bounds
-    // Adjust yrange manually if needed for better visualization
-    fprintf(gnuplot_script, "set yrange [-15:15]\n"); // Example range, adjust as necessary
-    // Ensure output directories exist (Gnuplot specific system command)
-    fprintf(gnuplot_script, "system 'mkdir -p plots data'\n"); // Use system for portability
+    if (gnuplot_script != NULL) {
+        // --- Common Gnuplot Settings for all plots in this script ---
+        fprintf(gnuplot_script, "set terminal png size 1200,800\n"); // Output format
+        fprintf(gnuplot_script, "set grid\n");                       // Enable grid
+        fprintf(gnuplot_script, "set key outside\n");                // Place legend outside plot area
+        fprintf(gnuplot_script, "set xlabel 'x'\n");                 // X-axis label
+        fprintf(gnuplot_script, "set ylabel 'f(x)'\n");              // Y-axis label
+        // Set axis ranges based on the function's behavior in the interval [a, b]
+        fprintf(gnuplot_script, "set xrange [%.2f:%.2f]\n", a, b);    // Use interval bounds
+        // Adjust yrange manually if needed for better visualization
+        fprintf(gnuplot_script, "set yrange [-15:15]\n"); // Example range, adjust as necessary
+        // Ensure output directories exist (Gnuplot specific system command)
+        fprintf(gnuplot_script, "system 'mkdir -p plots data'\n"); // Use system for portability
 
-    // --- Generate individual plots for each node count 'n' ---
-    fprintf(gnuplot_script, "# Plots of interpolated functions with nodes\n");
+        // --- Generate individual plots for each node count 'n' ---
+        fprintf(gnuplot_script, "# Plots of interpolated functions with nodes\n");
 
-    // Loop through number of nodes from 1 to maxNodes
-    for (int n = 1; n <= maxNodes; n++) {
+        // Loop through number of nodes from 1 to maxNodes
+        for (int n = 1; n <= maxNodes; n++) {
 
-        // --- Plot 1: Lagrange Interpolation with Uniform Nodes ---
-        fprintf(gnuplot_script, "set output 'plots/lagrange_uniform_with_nodes_n%d.png'\n", n); // Output filename
-        // Set plot title (using C string formatting)
-        fprintf(gnuplot_script, "set title \"Lagrange Interpolation (n=%d, Uniform Nodes)\"\n", n); // English title
-        // Plot command: original function, interpolated function, nodes
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original Function',\\\n"); // English legend
-        fprintf(gnuplot_script, "     'data/lagrange_uniform_n%d.dat' with lines lw 3 lc rgb 'red' title 'Lagrange Interpolation',\\\n", n); // English legend
-        fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
+            // --- Plot 1: Lagrange Interpolation with Uniform Nodes ---
+            fprintf(gnuplot_script, "set output 'plots/lagrange_uniform_with_nodes_n%d.png'\n", n); // Output filename
+            // Set plot title (using C string formatting)
+            fprintf(gnuplot_script, "set title \"Lagrange Interpolation (n=%d, Uniform Nodes)\"\n", n); // English title
+            // Plot command: original function, interpolated function, nodes
+            fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original Function',\\\n"); // English legend
+            fprintf(gnuplot_script, "     'data/lagrange_uniform_n%d.dat' with lines lw 3 lc rgb 'red' title 'Lagrange Interpolation',\\\n", n); // English legend
+            fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
 
-        // --- Plot 2: Lagrange Interpolation with Chebyshev Nodes ---
-        fprintf(gnuplot_script, "set output 'plots/lagrange_chebyshev_with_nodes_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Lagrange Interpolation (n=%d, Chebyshev Nodes)\"\n", n); // English title
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original Function',\\\n"); // English legend
-        fprintf(gnuplot_script, "     'data/lagrange_chebyshev_n%d.dat' with lines lw 3 lc rgb 'red' title 'Lagrange Interpolation',\\\n", n); // English legend
-        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
+            // --- Plot 2: Lagrange Interpolation with Chebyshev Nodes ---
+            fprintf(gnuplot_script, "set output 'plots/lagrange_chebyshev_with_nodes_n%d.png'\n", n);
+            fprintf(gnuplot_script, "set title \"Lagrange Interpolation (n=%d, Chebyshev Nodes)\"\n", n); // English title
+            fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original Function',\\\n"); // English legend
+            fprintf(gnuplot_script, "     'data/lagrange_chebyshev_n%d.dat' with lines lw 3 lc rgb 'red' title 'Lagrange Interpolation',\\\n", n); // English legend
+            fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
 
-        // --- Plot 3: Newton Interpolation with Uniform Nodes ---
-        fprintf(gnuplot_script, "set output 'plots/newton_uniform_with_nodes_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Newton Interpolation (n=%d, Uniform Nodes)\"\n", n); // English title
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original Function',\\\n"); // English legend
-        fprintf(gnuplot_script, "     'data/newton_uniform_n%d.dat' with lines lw 3 lc rgb 'red' title 'Newton Interpolation',\\\n", n); // English legend
-        fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
+            // --- Plot 3: Newton Interpolation with Uniform Nodes ---
+            fprintf(gnuplot_script, "set output 'plots/newton_uniform_with_nodes_n%d.png'\n", n);
+            fprintf(gnuplot_script, "set title \"Newton Interpolation (n=%d, Uniform Nodes)\"\n", n); // English title
+            fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original Function',\\\n"); // English legend
+            fprintf(gnuplot_script, "     'data/newton_uniform_n%d.dat' with lines lw 3 lc rgb 'red' title 'Newton Interpolation',\\\n", n); // English legend
+            fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
 
-        // --- Plot 4: Newton Interpolation with Chebyshev Nodes ---
-        fprintf(gnuplot_script, "set output 'plots/newton_chebyshev_with_nodes_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Newton Interpolation (n=%d, Chebyshev Nodes)\"\n", n); // English title
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original Function',\\\n"); // English legend
-        fprintf(gnuplot_script, "     'data/newton_chebyshev_n%d.dat' with lines lw 3 lc rgb 'red' title 'Newton Interpolation',\\\n", n); // English legend
-        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
+            // --- Plot 4: Newton Interpolation with Chebyshev Nodes ---
+            fprintf(gnuplot_script, "set output 'plots/newton_chebyshev_with_nodes_n%d.png'\n", n);
+            fprintf(gnuplot_script, "set title \"Newton Interpolation (n=%d, Chebyshev Nodes)\"\n", n); // English title
+            fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original Function',\\\n"); // English legend
+            fprintf(gnuplot_script, "     'data/newton_chebyshev_n%d.dat' with lines lw 3 lc rgb 'red' title 'Newton Interpolation',\\\n", n); // English legend
+            fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
+        }
+        // --- End of loop ---
+
+        fclose(gnuplot_script); // Close the script file
+        printf("\nGenerated Gnuplot script: %s\n", script_path); // Confirmation message
     }
-    // --- End of loop ---
-
-    fclose(gnuplot_script); // Close the script file
-    printf("\nGenerated Gnuplot script: %s\n", script_path); // Confirmation message
 }

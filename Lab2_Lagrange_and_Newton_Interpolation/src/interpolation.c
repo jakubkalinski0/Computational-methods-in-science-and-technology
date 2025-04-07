@@ -4,7 +4,7 @@
  */
 #include "../include/interpolation.h"
 #include <stdio.h> // For error reporting (fprintf, stderr)
-#include <stdlib.h> // Not strictly needed, but included in original
+#include <stdlib.h> // For dynamic memory allocation (malloc, free)
 #include <math.h>  // For fabs, isnan, isinf
 
 /**

@@ -1,5 +1,5 @@
 /**
-* @file interpolation.h
+ * @file interpolation.h
  * @brief Header file for interpolation algorithms.
  *
  * Defines function prototypes for Lagrange and Newton interpolation methods.
