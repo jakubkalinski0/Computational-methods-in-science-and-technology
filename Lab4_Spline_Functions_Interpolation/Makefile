@@ -1,46 +1,55 @@
 # Compiler and flags
 CC = gcc
 # Flags: -Wall (all warnings), -Wextra (more warnings), -O3 (optimization), -Iinclude (find headers), -g (debugging symbols)
-CFLAGS = -Wall -Wextra -O3 -Iinclude -g -Wno-unused-parameter #-Wmaybe-uninitialized # Removed maybe-uninitialized as it was addressed
-LDFLAGS = -lm # Link math library
+# -Wno-unused-parameter: Suppress warnings about unused deriv_a/b in spline calls when BC doesn't need them.
+# -lm: Link math library
+CFLAGS = -Wall -Wextra -O3 -Iinclude -g -Wno-unused-parameter
+LDFLAGS = -lm
 
-# Directories
+# Directories (using variables for consistency)
 SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
 DATA_DIR = data
 PLOTS_DIR = plots
 SCRIPT_DIR = scripts
+INCLUDE_DIR = include # Define include directory
 
 # Source and object files
+# Automatically find all .c files in SRC_DIR
 SOURCES = $(wildcard $(SRC_DIR)/*.c)
+# Replace src/%.c with obj/%.o for each source file
 OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SOURCES))
-EXECUTABLE = $(BIN_DIR)/interpolation
+# Define the executable path
+EXECUTABLE = $(BIN_DIR)/spline_interpolator # Changed executable name
 
-# Default rule
+# Header files (for dependency tracking)
+HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
+
+# Default rule: Build the executable
 all: directories $(EXECUTABLE)
 
-# Create directories
+# Rule to create necessary directories
+# Use $@ to refer to the target name (directories)
 directories:
+	@echo "Creating directories..."
 	@mkdir -p $(OBJ_DIR) $(BIN_DIR) $(DATA_DIR) $(PLOTS_DIR) $(SCRIPT_DIR)
 
-# Compile object files - Ensure header dependencies are checked
-$(OBJ_DIR)/error.o: $(SRC_DIR)/error.c include/error.h include/common.h
-	$(CC) $(CFLAGS) -c $< -o $@
-$(OBJ_DIR)/fileio.o: $(SRC_DIR)/fileio.c include/fileio.h include/common.h
-	$(CC) $(CFLAGS) -c $< -o $@
-$(OBJ_DIR)/function.o: $(SRC_DIR)/function.c include/function.h include/common.h
-	$(CC) $(CFLAGS) -c $< -o $@
-$(OBJ_DIR)/interpolation.o: $(SRC_DIR)/interpolation.c include/interpolation.h include/common.h
-	$(CC) $(CFLAGS) -c $< -o $@
-$(OBJ_DIR)/nodes.o: $(SRC_DIR)/nodes.c include/nodes.h include/common.h
-	$(CC) $(CFLAGS) -c $< -o $@
-# Explicit rule for main.o to show all dependencies clearly
-$(OBJ_DIR)/main.o: $(SRC_DIR)/main.c include/common.h include/function.h include/nodes.h include/interpolation.h include/error.h include/fileio.h
+# --- Pattern Rule for Compiling Object Files ---
+# This rule tells make how to create any .o file in OBJ_DIR
+# from its corresponding .c file in SRC_DIR.
+# $<: The first prerequisite (the .c file).
+# $@: The target file (the .o file).
+# It automatically handles dependencies on the .c file.
+# We add $(HEADERS) as prerequisites to ensure recompilation if any header changes.
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c $(HEADERS)
+	@echo "Compiling $< -> $@"
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Link the program
+# $^: All prerequisites (all object files).
 $(EXECUTABLE): $(OBJECTS)
+	@echo "Linking object files -> $@"
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 # Run the program
@@ -49,20 +58,23 @@ run: all
 	@./$(EXECUTABLE)
 	@echo "Program finished."
 
-# Generate plots
+# Generate plots (depends on running the program first to create data/scripts)
 plots: run
 	@echo "Generating plots using Gnuplot..."
-	@gnuplot "$(SCRIPT_DIR)/plot_interpolation.gp"
-	@gnuplot "$(SCRIPT_DIR)/plot_errors.gp"
-	@echo "Generated CSV files in directory $(DATA_DIR):"
-	@ls -l $(DATA_DIR)/*_errors.csv
-	@echo "Generated PNG files in directory $(PLOTS_DIR):"
-	@ls -l $(PLOTS_DIR)/*.png
-	@echo "Plots generated."
+	@gnuplot "$(SCRIPT_DIR)/plot_spline_interpolation.gp" && echo "Generated individual plots." || echo "Gnuplot failed for individual plots."
+	@gnuplot "$(SCRIPT_DIR)/plot_spline_errors.gp" && echo "Generated error summary plot." || echo "Gnuplot failed for error plot."
+	@echo "--- Generated Files ---"
+	@echo "CSV error files in $(DATA_DIR):"
+	@ls -1 $(DATA_DIR)/*_errors.csv 2>/dev/null || echo "  (No CSV files found)"
+	@echo "Plot files in $(PLOTS_DIR):"
+	@ls -1 $(PLOTS_DIR)/*.png 2>/dev/null || echo "  (No PNG files found)"
+	@echo "-----------------------"
+	@echo "Plot generation attempt finished."
 
-# Clean temporary files
+
+# Clean temporary files (object files, executable) and generated output
 clean:
-	@echo "Cleaning temporary files..."
+	@echo "Cleaning temporary and generated files..."
 	rm -f $(OBJ_DIR)/*.o
 	rm -f $(EXECUTABLE)
 	rm -f $(DATA_DIR)/*.dat $(DATA_DIR)/*.csv
@@ -79,7 +91,7 @@ distclean: clean
 # Help message
 help:
 	@echo "Available commands:"
-	@echo "  make all       - Compiles the program (default)"
+	@echo "  make all       - Compiles the program '$(EXECUTABLE)' (default)"
 	@echo "  make run       - Compiles and runs the program"
 	@echo "  make plots     - Compiles, runs the program, and generates plots and CSV files"
 	@echo "  make clean     - Removes object files, executable, scripts, and generated data/plots"

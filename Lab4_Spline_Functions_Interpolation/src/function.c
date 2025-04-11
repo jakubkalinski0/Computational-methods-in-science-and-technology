@@ -34,20 +34,15 @@ double f(double x) {
  * @brief Computes the first derivative of the function f(x) with respect to x.
  *
  * This function calculates f'(x), the derivative of f(x) = sin(k * x / PI) * exp(-m * x / PI).
- * The derivative is calculated using the product rule:
- * f'(x) = (d/dx [sin(kx/PI)]) * exp(-mx/PI) + sin(kx/PI) * (d/dx [exp(-mx/PI)])
- * f'(x) = (k/PI * cos(kx/PI)) * exp(-mx/PI) + sin(kx/PI) * (-m/PI * exp(-mx/PI))
+ * Needed for clamped boundary conditions.
  * f'(x) = (1/PI) * exp(-mx/PI) * [ k*cos(kx/PI) - m*sin(kx/PI) ]
- * This derivative is needed for methods like Hermite interpolation.
  *
  * @param x The input value (independent variable) at which to evaluate the derivative.
  * @return The computed value of the first derivative f'(x).
  */
 double df(double x) {
-    // Calculate the first term: (k/PI) * cos(k*x/PI) * exp(-m*x/PI)
-    double term1 = (k / PI) * cos(k * x / PI) * exp(-m * x / PI);
-    // Calculate the second term: (-m/PI) * sin(k*x/PI) * exp(-m*x/PI)
-    double term2 = (-m / PI) * sin(k * x / PI) * exp(-m * x / PI);
-    // Return the sum of the two terms (result of the product rule)
-    return term1 + term2;
+    double common_factor = (1.0 / PI) * exp(-m * x / PI);
+    double term1 = k * cos(k * x / PI);
+    double term2 = -m * sin(k * x / PI);
+    return common_factor * (term1 + term2);
 }

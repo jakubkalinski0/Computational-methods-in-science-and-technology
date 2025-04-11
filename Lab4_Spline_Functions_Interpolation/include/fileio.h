@@ -1,80 +1,58 @@
 /**
  * @file fileio.h
- * @brief Header file for file input/output operations.
- *
- * Defines function prototypes for saving data (function points, nodes, errors)
- * to files and generating Gnuplot scripts for visualization.
+ * @brief Header file for file input/output operations for spline interpolation.
+ * Handles uniform and Chebyshev nodes.
  */
 #ifndef FILEIO_H
 #define FILEIO_H
-#include "common.h"
+#include "common.h" // Includes BoundaryConditionType
 
-/**
- * @brief Saves a set of (x, y) data points to a file.
- *
- * Used for saving the original function curve or interpolated curves.
- * Files are saved in the 'data/' subdirectory.
- *
- * @param filename The name of the file to save (e.g., "original_function.dat").
- * @param x Array of x-coordinates.
- * @param y Array of y-coordinates.
- * @param n The number of data points.
- */
+// saveDataToFile, saveNodesToFile - bez zmian w sygnaturze
+
 void saveDataToFile(const char* filename, double x[], double y[], int n);
-
-/**
- * @brief Saves the interpolation nodes (x, y) to a file.
- *
- * Files are saved in the 'data/' subdirectory.
- *
- * @param filename The name of the file to save (e.g., "uniform_nodes_n5.dat").
- * @param nodes Array of node x-coordinates.
- * @param values Array of node y-coordinates (function values at nodes).
- * @param n The number of nodes.
- */
 void saveNodesToFile(const char* filename, double nodes[], double values[], int n);
 
 /**
- * @brief Generates a Gnuplot script to plot the comparison of maximum interpolation errors.
- *
- * Creates a script ('scripts/plot_errors.gp') that plots the maximum error
- * versus the number of nodes for different interpolation methods and node types.
- * The plot is saved as 'plots/interpolation_errors.png'.
- *
- * @param maxNodes The maximum number of nodes used in the analysis.
- * @param hermite_uniform_errors Array of max errors for Hermite with uniform nodes.
- * @param hermite_chebyshev_errors Array of max errors for Hermite with Chebyshev nodes.
+ * @brief Saves spline interpolation errors (max and MSE) to a CSV file.
+ * @param filename_base Base name for the CSV file (e.g., "cubic_natural_uniform_errors"). Saved as "data/filename_base.csv".
+ * @param maxNodes The maximum number of nodes used (results are for n=2 to maxNodes).
+ * @param errors Array containing the maximum absolute errors for each node count (index i -> n=i+2).
+ * @param mse Array containing the mean squared errors for each node count (index i -> n=i+2).
  */
-void generateErrorPlotScript(int maxNodes,
-                           double hermite_uniform_errors[],
-                           double hermite_chebyshev_errors[]);
+void saveSplineErrorsToFile(const char* filename_base, int maxNodes, double errors[], double mse[]);
+
 
 /**
- * @brief Saves Hermite/Uniform interpolation errors (max and MSE) to a CSV file.
- * @param maxNodes The maximum number of nodes used.
- * @param errors Array containing the maximum absolute errors for each node count.
- * @param mse Array containing the mean squared errors for each node count.
+ * @brief Generates Gnuplot script to plot comparison of maximum spline interpolation errors for different node types.
+ * Creates 'scripts/plot_spline_errors.gp'. Output plot 'plots/spline_interpolation_errors.png'.
+ *
+ * @param maxNodes The maximum number of nodes used (plotting n=2 to maxNodes).
+ * @param errors_cubic_natural_uniform Array of max errors for Cubic Natural (Uniform Nodes).
+ * @param errors_cubic_clamped_uniform Array of max errors for Cubic Clamped (Uniform Nodes).
+ * @param errors_quad_clamped_uniform Array of max errors for Quadratic Clamped (Uniform Nodes).
+ * @param errors_quad_zero_start_uniform Array of max errors for Quadratic Zero Start (Uniform Nodes).
+ * @param errors_cubic_natural_chebyshev Array of max errors for Cubic Natural (Chebyshev Nodes).
+ * @param errors_cubic_clamped_chebyshev Array of max errors for Cubic Clamped (Chebyshev Nodes).
+ * @param errors_quad_clamped_chebyshev Array of max errors for Quadratic Clamped (Chebyshev Nodes).
+ * @param errors_quad_zero_start_chebyshev Array of max errors for Quadratic Zero Start (Chebyshev Nodes).
  */
-void saveHermiteUniformErrorsToFile(int maxNodes, double errors[], double mse[]);
+void generateSplineErrorPlotScript(int maxNodes,
+                                   double errors_cubic_natural_uniform[],
+                                   double errors_cubic_clamped_uniform[],
+                                   double errors_quad_clamped_uniform[],
+                                   double errors_quad_zero_start_uniform[],
+                                   double errors_cubic_natural_chebyshev[],
+                                   double errors_cubic_clamped_chebyshev[],
+                                   double errors_quad_clamped_chebyshev[],
+                                   double errors_quad_zero_start_chebyshev[]);
+
 
 /**
- * @brief Saves Hermite/Chebyshev interpolation errors (max and MSE) to a CSV file.
- * @param maxNodes The maximum number of nodes used.
- * @param errors Array containing the maximum absolute errors for each node count.
- * @param mse Array containing the mean squared errors for each node count.
+ * @brief Generates Gnuplot script to plot individual spline interpolation results for each node count and type.
+ * Creates 'scripts/plot_spline_interpolation.gp'. Generates plots in 'plots/'.
+ *
+ * @param maxNodes The maximum number of nodes (plots generated for n=2 to maxNodes).
  */
-void saveHermiteChebyshevErrorsToFile(int maxNodes, double errors[], double mse[]);
+void generateSplineGnuplotScript(int maxNodes);
 
-/**
- * @brief Generates a Gnuplot script to plot individual interpolation results for each node count.
- *
- * Creates a script ('scripts/plot_interpolation.gp') that generates separate plots
- * for each combination of method (Lagrange/Newton), node type (Uniform/Chebyshev),
- * and node count (n=1 to maxNodes). Each plot shows the original function,
- * the interpolated function, and the interpolation nodes.
- * Plots are saved in the 'plots/' subdirectory (e.g., 'plots/lagrange_uniform_with_nodes_n5.png').
- *
- * @param maxNodes The maximum number of nodes for which plots should be generated.
- */
-void generateGnuplotScript(int maxNodes);
 #endif // FILEIO_H

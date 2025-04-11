@@ -1,177 +1,314 @@
 /**
  * @file interpolation.c
- * @brief Implementation of Lagrange and Newton interpolation algorithms.
+ * @brief Implementation of cubic and quadratic spline interpolation algorithms.
  */
 #include "../include/interpolation.h"
-#include <stdio.h>  // For error reporting (fprintf, stderr)
-#include <stdlib.h> // For dynamic memory allocation (malloc, free)
-#include <math.h>   // For fabs, NAN, isnan, isinf
-// #include <string.h> // For memset (optional, if initializing fz_flat to zero was desired)
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h> // For memset if needed
+
+// Forward declaration for the tridiagonal solver helper function
+static bool solveTridiagonal(int n, double *a, double *b, double *c, double *r, double *x);
 
 /**
- * @brief Performs Hermite interpolation using divided differences.
+ * @brief Finds the interval index 'i' such that nodes[i] <= x < nodes[i+1].
+ * Assumes nodes are sorted. Handles x outside the interval [nodes[0], nodes[n-1]].
+ * Uses linear search for simplicity. For large n, binary search would be faster.
  *
- * Calculates the interpolated value P(x) at point 'x' using the Hermite polynomial.
- * The Hermite polynomial matches both function values f(x_i) and first derivative
- * values f'(x_i) at n distinct nodes x_0, ..., x_{n-1}.
- * The degree of the resulting polynomial is 2n - 1.
- *
- * This implementation uses a generalized divided difference table approach.
- * A sequence z_0, z_1, ..., z_{2n-1} is constructed where each node x_i appears twice:
- * z_0 = x_0, z_1 = x_0, z_2 = x_1, z_3 = x_1, ..., z_{2n-2} = x_{n-1}, z_{2n-1} = x_{n-1}.
- *
- * The divided differences f[z_i, ..., z_{i+j}] are calculated:
- * - f[z_i] = f(x_k) if z_i corresponds to x_k.
- * - f[z_i, z_{i+1}] = f'(x_k) if z_i = z_{i+1} = x_k.
- * - f[z_i, ..., z_{i+j}] = (f[z_{i+1}, ..., z_{i+j}] - f[z_i, ..., z_{i+j-1}]) / (z_{i+j} - z_i) if z_{i+j} != z_i.
- *
- * The Hermite polynomial is then:
- * P(x) = f[z_0] + f[z_0, z_1](x-z_0) + f[z_0, z_1, z_2](x-z_0)(x-z_1) + ... + f[z_0, ..., z_{2n-1}] * product_{k=0}^{2n-2} (x-z_k)
- *
- * Due to the potentially large size of the divided difference table (2n x 2n),
- * dynamic memory allocation is used for it.
- *
- * @param x The point at which to evaluate the interpolation.
- * @param nodes Array of x-coordinates of the distinct interpolation nodes (size n).
- * @param values Array of y-coordinates (function values f(x_i)) at the nodes (size n).
- * @param derivatives Array of first derivative values (f'(x_i)) at the nodes (size n).
- * @param n The number of *distinct* interpolation nodes.
- * @return The interpolated value P(x) at point 'x'. Returns NAN on error.
+ * @param x The point to locate.
+ * @param nodes Sorted array of node x-coordinates.
+ * @param n Number of nodes.
+ * @return Index 'i' of the interval, or 0 if x < nodes[1], or n-2 if x >= nodes[n-1].
  */
-double hermiteInterpolation(double x, double nodes[], double values[], double derivatives[], int n) {
-    // Total number of interpolation conditions (n function values + n derivative values)
-    int m = 2 * n;
-    // If no nodes (n=0), return 0 or handle as appropriate.
-    if (m == 0) return 0.0; // Or perhaps NAN if n=0 is invalid input
+static int findInterval(double x, double nodes[], int n) {
+    if (n < 2) return 0; // Need at least 2 nodes for an interval
 
-    // Check if the number of nodes exceeds the limit (if MAX_NODES applies here too)
-    if (n > MAX_NODES) {
-         fprintf(stderr, "Error: Too many distinct nodes for Hermite interpolation (%d > MAX_NODES=%d)\n", n, MAX_NODES);
+    // Handle cases outside the main range
+    if (x <= nodes[0]) return 0; // Point is at or before the first node
+    if (x >= nodes[n-1]) return n - 2; // Point is at or after the last node
+
+    // Linear search for the interval
+    // Find i such that nodes[i] <= x < nodes[i+1]
+    for (int i = 0; i < n - 1; ++i) {
+        if (x >= nodes[i] && x < nodes[i+1]) {
+            return i;
+        }
+    }
+     // Should technically be covered by the x >= nodes[n-1] check,
+     // but as a fallback if x is exactly nodes[n-1]
+     return n - 2;
+}
+
+
+/**
+ * @brief Performs cubic spline interpolation.
+ * Calculates coefficients and evaluates the spline.
+ * See header interpolation.h for parameter details.
+ */
+double cubicSplineInterpolation(double x, double nodes[], double values[], int n,
+                                BoundaryConditionType bc_type, double deriv_a, double deriv_b)
+{
+    if (n < 2) {
+        fprintf(stderr, "Error (Cubic Spline): Need at least 2 nodes (n=%d).\n", n);
+        return NAN;
+    }
+     if (n > MAX_NODES) {
+         fprintf(stderr, "Error (Cubic Spline): Too many nodes (%d > MAX_NODES=%d)\n", n, MAX_NODES);
          return NAN;
-    }
+     }
+     if (nodes == NULL || values == NULL) {
+        fprintf(stderr, "Error (Cubic Spline): Nodes or values array is NULL.\n");
+        return NAN;
+     }
 
-    // Create the array 'z' of duplicated nodes on the stack (size 2n).
-    // Ensure MAX_NODES*2 doesn't cause stack overflow; consider dynamic allocation if n can be very large.
-    double z[MAX_NODES * 2]; // Needs to hold 2*n elements
 
-    // Dynamically allocate memory for the divided difference table 'fz'.
-    // The table size is m x m (or 2n x 2n).
-    // We allocate a flat 1D array and use a macro for 2D indexing.
-    size_t table_size = (size_t)m * (size_t)m; // Use size_t for potentially large allocations
-    double *fz_flat = (double*)malloc(table_size * sizeof(double));
-    if (fz_flat == NULL) {
-        fprintf(stderr, "Error: Failed to allocate memory for Hermite divided differences table (size %d x %d)\n", m, m);
-        return NAN; // Return Not-a-Number if allocation fails
-    }
-
-    // --- Define a macro for convenient 2D access to the flat array 'fz_flat' ---
-    // FZ(row, col) maps to the correct index in the 1D array.
-    // This macro is only visible within this function scope after this point.
-    #define FZ(row, col) fz_flat[(size_t)(row) * m + (size_t)(col)]
-
-    // --- Step 1: Prepare the 'z' array and initialize the first column (j=0) of 'fz' ---
-    // Populate 'z' by duplicating each node x_i.
-    // Initialize FZ[i][0] with the corresponding function value f(x_k).
-    for (int i = 0; i < n; i++) {
-        z[2*i]     = nodes[i];      // z_0, z_2, z_4, ...
-        z[2*i+1]   = nodes[i];      // z_1, z_3, z_5, ...
-        FZ(2*i, 0)   = values[i];   // FZ[0][0], FZ[2][0], ... = f(x_0), f(x_1), ...
-        FZ(2*i+1, 0) = values[i];   // FZ[1][0], FZ[3][0], ... = f(x_0), f(x_1), ...
-    }
-
-    // --- Step 2: Calculate the divided differences ---
-    // Iterate through columns j = 1 to m-1
-    for (int j = 1; j < m; j++) {
-        // Iterate through rows i = 0 to m-j-1
-        for (int i = 0; i < m - j; i++) {
-            // Calculate the denominator z[i+j] - z[i]
-            double denominator = z[i+j] - z[i];
-
-            // Check if the denominator is close to zero (i.e., z[i+j] == z[i])
-            if (fabs(denominator) < 1e-15) {
-                 // Special case for Hermite: If z[i+j] == z[i], this occurs when j=1 and i is even.
-                 // In this case, the divided difference f[z_i, z_{i+1}] is defined as f'(x_k), where z_i=z_{i+1}=x_k.
-                 if (j == 1 && (i % 2 == 0)) {
-                     // Check array bounds for the derivatives array
-                     if (i / 2 < n) {
-                        // Assign the derivative value
-                        FZ(i, j) = derivatives[i / 2]; // FZ[0][1]=f'(x0), FZ[2][1]=f'(x1), ...
-                     } else {
-                         // Index out of bounds error, should not happen if loops are correct
-                         fprintf(stderr, "Error: Index out of bounds accessing derivatives array at i=%d (n=%d)\n", i, n);
-                         FZ(i, j) = NAN; // Assign NaN on error
-                     }
-                } else {
-                    // If denominator is zero for j > 1 or odd i when j=1, it indicates an issue
-                    // (possibly identical distinct nodes passed in, or numerical instability).
-                    // Standard divided difference is undefined. Assigning 0 or NaN can be debated.
-                    // Let's use 0 and issue a warning, as NaN might propagate too aggressively.
-                    // Using 0 effectively assumes higher-order derivatives are zero in this problematic case.
-                    fprintf(stderr, "Warning: Near-zero denominator encountered in Hermite DD calculation at i=%d, j=%d where it is not expected f'(x_k). Using 0.0.\n", i, j);
-                    FZ(i, j) = 0.0; // Or potentially NAN
-                }
-            } else {
-                 // Standard divided difference calculation: (f[z_{i+1},..] - f[z_i,..]) / (z_{i+j} - z_i)
-                 // Check if the terms used in the numerator are valid (not NaN)
-                 if(isnan(FZ(i+1, j-1)) || isnan(FZ(i, j-1))) {
-                     FZ(i, j) = NAN; // Propagate NaN if inputs are invalid
-                 } else {
-                     FZ(i, j) = (FZ(i+1, j-1) - FZ(i, j-1)) / denominator;
-                 }
-            }
+    // Step 1: Calculate interval lengths h_i
+    double h[MAX_NODES]; // n-1 intervals, use MAX_NODES-1 for safety
+    for (int i = 0; i < n - 1; ++i) {
+        h[i] = nodes[i+1] - nodes[i];
+        if (h[i] <= 0) {
+            fprintf(stderr, "Error (Cubic Spline): Nodes must be strictly increasing (h[%d]=%g <= 0).\n", i, h[i]);
+            return NAN;
         }
     }
 
-    // --- Step 3: Evaluate the Hermite polynomial using the computed divided differences ---
-    // P(x) = FZ[0][0] + FZ[0][1]*(x-z0) + FZ[0][2]*(x-z0)*(x-z1) + ...
-    double result = 0.0;
-    // Check if the first term FZ[0][0] is valid before starting
-    if (m > 0) {
-       if (isnan(FZ(0, 0))) {
-           fprintf(stderr, "Error: First divided difference FZ[0][0] is NaN.\n");
-           free(fz_flat); // Free allocated memory before returning
-           return NAN;
-       }
-       result = FZ(0, 0); // Initialize result with the first term f[z_0]
+    // Step 2: Set up the tridiagonal system Ax = B for second derivatives M_i (M_0 to M_{n-1})
+    // System size is n x n.
+    // 'a' = sub-diagonal, 'b' = main diagonal, 'c' = super-diagonal, 'r' = right-hand side
+    double *diag_a = (double*)malloc((n) * sizeof(double)); // sub-diagonal (indices 1 to n-1)
+    double *diag_b = (double*)malloc((n) * sizeof(double)); // main diagonal (indices 0 to n-1)
+    double *diag_c = (double*)malloc((n) * sizeof(double)); // super-diagonal (indices 0 to n-2)
+    double *rhs   = (double*)malloc((n) * sizeof(double)); // right-hand side B
+    double *M     = (double*)malloc((n) * sizeof(double)); // Solution vector (second derivatives M_i)
+
+    if (!diag_a || !diag_b || !diag_c || !rhs || !M) {
+        fprintf(stderr, "Error (Cubic Spline): Memory allocation failed for tridiagonal system.\n");
+        free(diag_a); free(diag_b); free(diag_c); free(rhs); free(M);
+        return NAN;
     }
 
-    // Initialize the product term (x-z_0)(x-z_1)...(x-z_{k-1})
-    double product_term = 1.0;
+    // --- Fill the interior equations (row i corresponds to M_i, for i=1 to n-2) ---
+    // Equation: h[i-1]*M[i-1] + 2*(h[i-1]+h[i])*M[i] + h[i]*M[i+1] = 6 * ((y[i+1]-y[i])/h[i] - (y[i]-y[i-1])/h[i-1])
+    for (int i = 1; i < n - 1; ++i) {
+        diag_a[i] = h[i-1]; // Coefficient of M[i-1]
+        diag_b[i] = 2.0 * (h[i-1] + h[i]); // Coefficient of M[i]
+        diag_c[i] = h[i];   // Coefficient of M[i+1]
+        rhs[i] = 6.0 * ((values[i+1] - values[i]) / h[i] - (values[i] - values[i-1]) / h[i-1]);
+    }
 
-    // Iterate through the remaining terms of the polynomial (k = 1 to m-1)
-    for (int k = 1; k < m; k++) {
-        // Update the product term: multiply by (x - z_{k-1})
-        product_term *= (x - z[k-1]);
+    // --- Apply Boundary Conditions (equations for M_0 and M_{n-1}) ---
+    if (bc_type == BOUNDARY_NATURAL) {
+        // Natural Spline: M_0 = 0, M_{n-1} = 0
+        // Equation 0: 1*M_0 + 0*M_1 = 0
+        diag_b[0] = 1.0;
+        diag_c[0] = 0.0;
+        rhs[0] = 0.0;
+        // Equation n-1: 0*M_{n-2} + 1*M_{n-1} = 0
+        diag_a[n-1] = 0.0;
+        diag_b[n-1] = 1.0;
+        rhs[n-1] = 0.0;
 
-        // Check if the divided difference FZ[0][k] or the product term is NaN
-        if (isnan(FZ(0, k)) || isnan(product_term)) {
-             fprintf(stderr, "Warning: NaN encountered during Hermite polynomial evaluation at term k=%d.\n", k);
-             result = NAN; // Propagate NaN
-             break;        // Stop evaluation if NaN occurs
+    } else if (bc_type == BOUNDARY_CLAMPED) {
+         // Clamped Spline: Specify S'(a)=deriv_a, S'(b)=deriv_b
+         // Equation 0: 2*h[0]*M_0 + h[0]*M_1 = 6 * ((y[1]-y[0])/h[0] - deriv_a)
+         diag_b[0] = 2.0 * h[0];
+         diag_c[0] = h[0];
+         rhs[0] = 6.0 * ((values[1] - values[0]) / h[0] - deriv_a);
+         // Equation n-1: h[n-2]*M_{n-2} + 2*h[n-2]*M_{n-1} = 6 * (deriv_b - (y[n-1]-y[n-2])/h[n-2])
+         diag_a[n-1] = h[n-2];
+         diag_b[n-1] = 2.0 * h[n-2];
+         rhs[n-1] = 6.0 * (deriv_b - (values[n-1] - values[n-2]) / h[n-2]);
+
+    } else {
+        fprintf(stderr, "Error (Cubic Spline): Unsupported boundary condition type.\n");
+        free(diag_a); free(diag_b); free(diag_c); free(rhs); free(M);
+        return NAN;
+    }
+
+    // Step 3: Solve the tridiagonal system for M
+    bool success = solveTridiagonal(n, diag_a, diag_b, diag_c, rhs, M);
+
+    // Free temporary arrays used for solver setup
+    free(diag_a); free(diag_b); free(diag_c); free(rhs);
+
+    if (!success) {
+        fprintf(stderr, "Error (Cubic Spline): Tridiagonal solver failed.\n");
+        free(M);
+        return NAN;
+    }
+
+    // Step 4: Evaluate the spline S(x) at the given point x
+    int i = findInterval(x, nodes, n); // Find interval i such that nodes[i] <= x < nodes[i+1]
+
+    // Coefficients for the cubic polynomial S_i(x) on [nodes[i], nodes[i+1]]
+    // S_i(x) = a_i + b_i*(x-x_i) + c_i*(x-x_i)^2 + d_i*(x-x_i)^3
+    // where x_i = nodes[i], y_i = values[i]
+    double xi = nodes[i];
+    double x_minus_xi = x - xi;
+    double hi = h[i]; // Use precalculated h[i]
+
+    // Coefficients in terms of y_i and M_i:
+    double a_i = values[i];
+    double b_i = (values[i+1] - values[i]) / hi - hi / 6.0 * (M[i+1] + 2.0 * M[i]);
+    double c_i = M[i] / 2.0;
+    double d_i = (M[i+1] - M[i]) / (6.0 * hi);
+
+    // Evaluate the polynomial
+    double result = a_i + b_i * x_minus_xi + c_i * x_minus_xi * x_minus_xi + d_i * x_minus_xi * x_minus_xi * x_minus_xi;
+
+    // Free the solution vector M
+    free(M);
+
+    return result;
+}
+
+
+/**
+ * @brief Performs quadratic spline interpolation.
+ * Calculates coefficients and evaluates the spline.
+ * We use the formulation where S_i(x_i)=y_i, S_i(x_{i+1})=y_{i+1}, and S'(x) is continuous.
+ * This leads to needing one boundary condition, typically S'(a).
+ * See header interpolation.h for parameter details.
+ */
+double quadraticSplineInterpolation(double x, double nodes[], double values[], int n,
+                                    BoundaryConditionType bc_type, double deriv_a)
+{
+     if (n < 2) {
+        fprintf(stderr, "Error (Quadratic Spline): Need at least 2 nodes (n=%d).\n", n);
+        return NAN;
+    }
+     if (n > MAX_NODES) {
+         fprintf(stderr, "Error (Quadratic Spline): Too many nodes (%d > MAX_NODES=%d)\n", n, MAX_NODES);
+         return NAN;
+     }
+     if (nodes == NULL || values == NULL) {
+        fprintf(stderr, "Error (Quadratic Spline): Nodes or values array is NULL.\n");
+        return NAN;
+     }
+
+    // Step 1: Calculate interval lengths h_i
+    double h[MAX_NODES]; // n-1 intervals
+    for (int i = 0; i < n - 1; ++i) {
+        h[i] = nodes[i+1] - nodes[i];
+        if (h[i] <= 0) {
+            fprintf(stderr, "Error (Quadratic Spline): Nodes must be strictly increasing (h[%d]=%g <= 0).\n", i, h[i]);
+            return NAN;
         }
+    }
 
-        // Add the next term: FZ[0][k] * product_term
-        result += FZ(0, k) * product_term;
+    // Step 2: Determine the derivatives m_i = S'(x_i) at the nodes.
+    // We have n unknowns (m_0 to m_{n-1}) and n-1 equations from derivative continuity:
+    // S'_{i-1}(x_i) = S'_i(x_i)  =>  m_i + m_{i-1} = 2 * (y_i - y_{i-1}) / h_{i-1}  (for i=1 to n-1)
+    // We need one boundary condition to solve this system.
 
-        // Check if the result itself became NaN (e.g., due to Inf * 0)
-        if (isnan(result)) {
-            fprintf(stderr, "Warning: Result became NaN during Hermite polynomial evaluation sum at term k=%d.\n", k);
-            break;
+    double *m = (double*)malloc(n * sizeof(double)); // Derivatives m_i
+    if (!m) {
+        fprintf(stderr, "Error (Quadratic Spline): Memory allocation failed for derivatives.\n");
+        return NAN;
+    }
+
+    // Apply the boundary condition at the start (node 0)
+    if (bc_type == BOUNDARY_CLAMPED) {
+        m[0] = deriv_a; // Use provided f'(a)
+    } else if (bc_type == BOUNDARY_ZERO_SLOPE_START) {
+        m[0] = 0.0;     // Set S'(a) = 0
+    } else {
+        fprintf(stderr, "Error (Quadratic Spline): Unsupported boundary condition type for quadratic spline.\n");
+        free(m);
+        return NAN;
+    }
+
+    // Calculate remaining derivatives m_1 to m_{n-1} using the recurrence relation
+    for (int i = 1; i < n; ++i) {
+        // m_i = 2 * (y_i - y_{i-1}) / h_{i-1} - m_{i-1}
+        if (h[i-1] == 0) { // Should have been caught earlier, but double-check
+             fprintf(stderr, "Error (Quadratic Spline): Zero interval length h[%d].\n", i-1);
+             free(m);
+             return NAN;
         }
+        m[i] = 2.0 * (values[i] - values[i-1]) / h[i-1] - m[i-1];
     }
 
-    // --- Cleanup: Free the dynamically allocated memory ---
-    free(fz_flat);
+    // Step 3: Evaluate the spline S(x) at the given point x
+    int i = findInterval(x, nodes, n); // Find interval i such that nodes[i] <= x < nodes[i+1]
 
-    // --- Undefine the macro to limit its scope (good practice) ---
-    // Although its scope is limited to this function anyway after C99,
-    // explicitly undefining can prevent potential issues if the file structure changes.
-    #undef FZ
+    // Coefficients for the quadratic polynomial S_i(x) on [nodes[i], nodes[i+1]]
+    // S_i(x) = a_i + b_i*(x-x_i) + c_i*(x-x_i)^2
+    // where x_i = nodes[i], y_i = values[i]
+    double xi = nodes[i];
+    double x_minus_xi = x - xi;
+    double hi = h[i];
 
-    // Final check on the result before returning
-    if (isnan(result) || isinf(result)) {
-         fprintf(stderr, "Warning: Hermite interpolation final result is %f for x=%g with n=%d nodes.\n", result, x, n);
+    // Coefficients derived from S_i(x_i) = y_i and S'_i(x_i) = m_i
+    // and S_i(x_{i+1}) = y_{i+1}
+    double a_i = values[i];
+    double b_i = m[i];
+    // From y_{i+1} = a_i + b_i*h_i + c_i*h_i^2
+    double c_i = (values[i+1] - a_i - b_i * hi) / (hi * hi);
+    // Alternative calculation for c_i using derivatives:
+    // m_{i+1} = S'_i(x_{i+1}) = b_i + 2*c_i*h_i => c_i = (m[i+1] - m[i]) / (2.0 * hi);
+    // Let's use the first formulation as it directly uses node values.
+
+    // Evaluate the polynomial
+    double result = a_i + b_i * x_minus_xi + c_i * x_minus_xi * x_minus_xi;
+
+    // Free the derivatives array
+    free(m);
+
+    return result;
+}
+
+
+// --- Helper Function: Tridiagonal Solver (Thomas Algorithm) ---
+
+/**
+ * @brief Solves a tridiagonal linear system Ax = r using the Thomas algorithm.
+ * Modifies the input arrays c and r during the process.
+ *
+ * @param n The size of the system (number of equations/unknowns).
+ * @param a Pointer to the sub-diagonal array (a[0] is not used, indices 1 to n-1).
+ * @param b Pointer to the main diagonal array (indices 0 to n-1).
+ * @param c Pointer to the super-diagonal array (indices 0 to n-2).
+ * @param r Pointer to the right-hand side vector (indices 0 to n-1). Will be modified.
+ * @param x Pointer to the solution vector (output, indices 0 to n-1).
+ * @return true if successful, false if division by zero occurs (matrix is singular or unstable).
+ */
+static bool solveTridiagonal(int n, double *a, double *b, double *c, double *r, double *x) {
+    if (n <= 0) return false; // No system to solve
+
+    // Allocate temporary storage for modified c' and r' coefficients if we don't want to modify inputs directly
+    // Alternatively, modify c and r in place. Let's modify in place for efficiency.
+    double *c_prime = c; // Use input 'c' array for c'
+    double *r_prime = r; // Use input 'r' array for r'
+
+    // Forward elimination
+    if (fabs(b[0]) < 1e-15) { // Check for zero pivot
+        fprintf(stderr, "Error (Tridiagonal Solver): Division by zero at forward stage (b[0]).\n");
+        return false;
+    }
+    if (n > 1) { // Avoid accessing c_prime[0] if n=1
+      c_prime[0] = c[0] / b[0];
+    }
+    r_prime[0] = r[0] / b[0];
+
+    for (int i = 1; i < n; ++i) {
+        double m = b[i] - a[i] * c_prime[i-1];
+        if (fabs(m) < 1e-15) { // Check for zero pivot
+             fprintf(stderr, "Error (Tridiagonal Solver): Division by zero at forward stage (i=%d).\n", i);
+            return false;
+        }
+        if (i < n - 1) { // Avoid accessing c_prime[i] on last iteration
+          c_prime[i] = c[i] / m;
+        }
+        r_prime[i] = (r[i] - a[i] * r_prime[i-1]) / m;
     }
 
-    return result; // Return the final interpolated value
+    // Back substitution
+    x[n-1] = r_prime[n-1];
+    for (int i = n - 2; i >= 0; --i) {
+        x[i] = r_prime[i] - c_prime[i] * x[i+1];
+    }
+
+    return true;
 }
