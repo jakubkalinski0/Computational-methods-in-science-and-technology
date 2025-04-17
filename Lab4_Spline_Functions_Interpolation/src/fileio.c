@@ -128,10 +128,10 @@ void generateSplineErrorPlotScript(int maxNodes,
     fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 7 lc rgb 'red' title 'Cubic Clamp (Uniform)', \\\n");
     fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 6 lc rgb 'green' title 'Quad Clamp (Uniform)', \\\n");
     fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 6 lc rgb 'purple' title 'Quad ZeroSt (Uniform)', \\\n");
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 5 lc rgb 'cyan' title 'Cubic Nat (Chebyshev)', \\\n"); // points as squares for Chebyshev
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 5 lc rgb 'orange' title 'Cubic Clamp (Chebyshev)', \\\n");
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'dark-green' title 'Quad Clamp (Chebyshev)', \\\n");
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'magenta' title 'Quad ZeroSt (Chebyshev)'\n");
+//    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 5 lc rgb 'cyan' title 'Cubic Nat (Chebyshev)', \\\n"); // points as squares for Chebyshev
+//    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 5 lc rgb 'orange' title 'Cubic Clamp (Chebyshev)', \\\n");
+//    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'dark-green' title 'Quad Clamp (Chebyshev)', \\\n");
+//    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'magenta' title 'Quad ZeroSt (Chebyshev)'\n");
 
 
     // Embed data for Uniform nodes (4 plots)
@@ -144,15 +144,15 @@ void generateSplineErrorPlotScript(int maxNodes,
     for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_quad_zero_start_uniform[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_quad_zero_start_uniform[i]);
     fprintf(gnuplot_script, "e\n");
 
-    // Embed data for Chebyshev nodes (4 plots)
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_cubic_natural_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_cubic_natural_chebyshev[i]);
-    fprintf(gnuplot_script, "e\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_cubic_clamped_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_cubic_clamped_chebyshev[i]);
-    fprintf(gnuplot_script, "e\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_quad_clamped_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_quad_clamped_chebyshev[i]);
-    fprintf(gnuplot_script, "e\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_quad_zero_start_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_quad_zero_start_chebyshev[i]);
-    fprintf(gnuplot_script, "e\n");
+//    // Embed data for Chebyshev nodes (4 plots)
+//    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_cubic_natural_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_cubic_natural_chebyshev[i]);
+//    fprintf(gnuplot_script, "e\n");
+//    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_cubic_clamped_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_cubic_clamped_chebyshev[i]);
+//    fprintf(gnuplot_script, "e\n");
+//    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_quad_clamped_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_quad_clamped_chebyshev[i]);
+//    fprintf(gnuplot_script, "e\n");
+//    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_quad_zero_start_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_quad_zero_start_chebyshev[i]);
+//    fprintf(gnuplot_script, "e\n");
 
     fclose(gnuplot_script);
     printf("Generated Gnuplot script: %s\n", script_path);
@@ -214,32 +214,32 @@ void generateSplineGnuplotScript(int maxNodes) {
         fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n);
 
 
-        // --- Plots for Chebyshev Nodes ---
-        fprintf(gnuplot_script, "\n# --- n=%d, Chebyshev Nodes ---\n", n);
-        // Cubic Natural (Chebyshev)
-        fprintf(gnuplot_script, "set output 'plots/cubic_natural_chebyshev_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Cubic Spline (n=%d, Natural BC, Chebyshev Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original', \\\n");
-        fprintf(gnuplot_script, "     'data/cubic_natural_chebyshev_n%d.dat' with lines lw 2 lc 'cyan' title 'Cubic Spline', \\\n", n);
-        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n); // Different point type
-        // Cubic Clamped (Chebyshev)
-        fprintf(gnuplot_script, "set output 'plots/cubic_clamped_chebyshev_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Cubic Spline (n=%d, Clamped BC, Chebyshev Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original', \\\n");
-        fprintf(gnuplot_script, "     'data/cubic_clamped_chebyshev_n%d.dat' with lines lw 2 lc 'orange' title 'Cubic Spline', \\\n", n);
-        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n);
-        // Quadratic Clamped (Chebyshev)
-        fprintf(gnuplot_script, "set output 'plots/quadratic_clamped_chebyshev_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Quadratic Spline (n=%d, Clamped Start BC, Chebyshev Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original', \\\n");
-        fprintf(gnuplot_script, "     'data/quadratic_clamped_chebyshev_n%d.dat' with lines lw 2 lc 'dark-green' title 'Quadratic Spline', \\\n", n);
-        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n);
-        // Quadratic Zero Start (Chebyshev)
-        fprintf(gnuplot_script, "set output 'plots/quadratic_zero_start_chebyshev_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Quadratic Spline (n=%d, Zero Start BC, Chebyshev Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original', \\\n");
-        fprintf(gnuplot_script, "     'data/quadratic_zero_start_chebyshev_n%d.dat' with lines lw 2 lc 'magenta' title 'Quadratic Spline', \\\n", n);
-        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n);
+//        // --- Plots for Chebyshev Nodes ---
+//        fprintf(gnuplot_script, "\n# --- n=%d, Chebyshev Nodes ---\n", n);
+//        // Cubic Natural (Chebyshev)
+//        fprintf(gnuplot_script, "set output 'plots/cubic_natural_chebyshev_n%d.png'\n", n);
+//        fprintf(gnuplot_script, "set title \"Cubic Spline (n=%d, Natural BC, Chebyshev Nodes)\"\n", n);
+//        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original', \\\n");
+//        fprintf(gnuplot_script, "     'data/cubic_natural_chebyshev_n%d.dat' with lines lw 2 lc 'cyan' title 'Cubic Spline', \\\n", n);
+//        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n); // Different point type
+//        // Cubic Clamped (Chebyshev)
+//        fprintf(gnuplot_script, "set output 'plots/cubic_clamped_chebyshev_n%d.png'\n", n);
+//        fprintf(gnuplot_script, "set title \"Cubic Spline (n=%d, Clamped BC, Chebyshev Nodes)\"\n", n);
+//        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original', \\\n");
+//        fprintf(gnuplot_script, "     'data/cubic_clamped_chebyshev_n%d.dat' with lines lw 2 lc 'orange' title 'Cubic Spline', \\\n", n);
+//        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n);
+//        // Quadratic Clamped (Chebyshev)
+//        fprintf(gnuplot_script, "set output 'plots/quadratic_clamped_chebyshev_n%d.png'\n", n);
+//        fprintf(gnuplot_script, "set title \"Quadratic Spline (n=%d, Clamped Start BC, Chebyshev Nodes)\"\n", n);
+//        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original', \\\n");
+//        fprintf(gnuplot_script, "     'data/quadratic_clamped_chebyshev_n%d.dat' with lines lw 2 lc 'dark-green' title 'Quadratic Spline', \\\n", n);
+//        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n);
+//        // Quadratic Zero Start (Chebyshev)
+//        fprintf(gnuplot_script, "set output 'plots/quadratic_zero_start_chebyshev_n%d.png'\n", n);
+//        fprintf(gnuplot_script, "set title \"Quadratic Spline (n=%d, Zero Start BC, Chebyshev Nodes)\"\n", n);
+//        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original', \\\n");
+//        fprintf(gnuplot_script, "     'data/quadratic_zero_start_chebyshev_n%d.dat' with lines lw 2 lc 'magenta' title 'Quadratic Spline', \\\n", n);
+//        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n);
 
     }
     fclose(gnuplot_script);
