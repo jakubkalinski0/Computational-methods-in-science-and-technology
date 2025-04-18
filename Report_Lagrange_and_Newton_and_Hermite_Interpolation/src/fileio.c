@@ -99,10 +99,10 @@ void generateErrorPlotScript(int maxNodes,
     // Set output file name
     fprintf(gnuplot_script, "set output 'plots/interpolation_errors.png'\n");
     // Set plot title
-    fprintf(gnuplot_script, "set title 'Porównanie błędów interpolacji (maksymalny błąd bezwzględny)'\n"); // English title
+    fprintf(gnuplot_script, "set title 'Comparison of Interpolation Errors (Max Absolute Error)'\n"); // English title
     // Set axis labels
-    fprintf(gnuplot_script, "set xlabel 'Liczba węzłów (n)'\n"); // English label
-    fprintf(gnuplot_script, "set ylabel 'Maksymalny błąd bezwzględny'\n"); // English label
+    fprintf(gnuplot_script, "set xlabel 'Number of Nodes (n)'\n"); // English label
+    fprintf(gnuplot_script, "set ylabel 'Maximum Absolute Error'\n"); // English label
     // Enable grid
     fprintf(gnuplot_script, "set grid\n");
     // Position the legend
@@ -116,12 +116,12 @@ void generateErrorPlotScript(int maxNodes,
     fprintf(gnuplot_script, "system 'mkdir -p plots'\n"); // Use system for portability
 
     // Define the plot command: plot data directly embedded in the script ('-')
-    fprintf(gnuplot_script, "plot '-' using 1:2 with linespoints pt 7 lc rgb 'purple' title 'Lagrange (węzły równoodległe)', \\\n"); // English legend
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'magenta' title 'Lagrange (węzły Czebyszewa)', \\\n"); // English legend
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 7 lc rgb 'blue' title 'Newton (węzły równoodległe)', \\\n"); // English legend
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'green' title 'Newton (węzły Czebyszewa)', \\\n"); // English legend
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 7 lc rgb 'orange' title 'Hermite (węzły równoodległe)', \\\n"); // English legend
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'red' title 'Hermite (węzły Czebyszewa)'\n"); // English legend
+    fprintf(gnuplot_script, "plot '-' using 1:2 with linespoints pt 7 lc rgb 'purple' title 'Lagrange (Uniform Nodes)', \\\n"); // English legend
+    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'magenta' title 'Lagrange (Chebyshev Nodes)', \\\n"); // English legend
+    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 7 lc rgb 'blue' title 'Newton (Uniform Nodes)', \\\n"); // English legend
+    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'green' title 'Newton (Chebyshev Nodes)', \\\n"); // English legend
+    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 7 lc rgb 'orange' title 'Hermite (Uniform Nodes)', \\\n"); // English legend
+    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'red' title 'Hermite (Chebyshev Nodes)'\n"); // English legend
 
     // Embed data for Lagrange Uniform errors
     for (int i = 0; i < maxNodes; i++) {
@@ -369,20 +369,20 @@ void generateGnuplotScript(int maxNodes) {
             // --- Plot 7: All Interpolations with Uniform Nodes ---
             fprintf(gnuplot_script, "set output 'plots/all_uniform_with_nodes_n%d.png'\n", n); // Output filename
             fprintf(gnuplot_script, "set title \"Wszystkie interpolacje (n=%d, węzły równoodległe)\"\n", n); // English title
-            fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 3 lw 3 lc rgb 'black' title 'Oryginalna funkcja',\\\n"); // English legend
-            fprintf(gnuplot_script, "     'data/lagrange_uniform_n%d.dat' with lines dashtype 2 lw 3 lc rgb 'purple' title 'Interpolacja Lagrange`a',\\\n", n); // English legend
-            fprintf(gnuplot_script, "     'data/newton_uniform_n%d.dat' with lines dashtype 4 lw 3 lc rgb 'blue' title 'Interpolacja Newton`a',\\\n", n); // English legend
-            fprintf(gnuplot_script, "     'data/hermite_uniform_n%d.dat' with lines dashtype 5 lw 3 lc rgb 'orange' title 'Interpolacja Hermite`a',\\\n", n); // English legend
-            fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Węzły'\n", n); // English legend
+            fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 3 lw 3 lc rgb 'black' title 'Original Function',\\\n"); // English legend
+            fprintf(gnuplot_script, "     'data/lagrange_uniform_n%d.dat' with lines dashtype 2 lw 3 lc rgb 'purple' title 'Lagrange Interpolation',\\\n", n); // English legend
+            fprintf(gnuplot_script, "     'data/newton_uniform_n%d.dat' with lines dashtype 4 lw 3 lc rgb 'blue' title 'Newton Interpolation',\\\n", n); // English legend
+            fprintf(gnuplot_script, "     'data/hermite_uniform_n%d.dat' with lines dashtype 5 lw 3 lc rgb 'orange' title 'Hermite Interpolation',\\\n", n); // English legend
+            fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
 
             // --- Plot 8: All Interpolations with Chebyshev Nodes ---
             fprintf(gnuplot_script, "set output 'plots/all_chebyshev_with_nodes_n%d.png'\n", n); // Output filename
             fprintf(gnuplot_script, "set title \"Wszystkie interpolacje (n=%d, węzły Czebyszewa)\"\n", n); // English title
-            fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 3 lw 3 lc rgb 'black' title 'Oryginalna funkcja',\\\n"); // English legend
-            fprintf(gnuplot_script, "     'data/lagrange_chebyshev_n%d.dat' with lines dashtype 2 lw 3 lc rgb 'magenta' title 'Interpolacja Lagrange`a',\\\n", n); // English legend
-            fprintf(gnuplot_script, "     'data/newton_chebyshev_n%d.dat' with lines dashtype 4 lw 3 lc rgb 'green' title 'Interpolacja Newton`a',\\\n", n); // English legend
-            fprintf(gnuplot_script, "     'data/hermite_chebyshev_n%d.dat' with lines dashtype 5 lw 3 lc rgb 'red' title 'Interpolacja Hermite`a',\\\n", n); // English legend
-            fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Węzły'\n", n); // English legend
+            fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 3 lw 3 lc rgb 'black' title 'Original Function',\\\n"); // English legend
+            fprintf(gnuplot_script, "     'data/lagrange_chebyshev_n%d.dat' with lines dashtype 2 lw 3 lc rgb 'magenta' title 'Lagrange Interpolation',\\\n", n); // English legend
+            fprintf(gnuplot_script, "     'data/newton_chebyshev_n%d.dat' with lines dashtype 4 lw 3 lc rgb 'green' title 'Newton Interpolation',\\\n", n); // English legend
+            fprintf(gnuplot_script, "     'data/hermite_chebyshev_n%d.dat' with lines dashtype 5 lw 3 lc rgb 'red' title 'Hermite Interpolation',\\\n", n); // English legend
+            fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
         }
         // --- End of loop ---
 

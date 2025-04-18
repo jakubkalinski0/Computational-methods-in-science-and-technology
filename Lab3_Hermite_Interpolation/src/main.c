@@ -1,11 +1,47 @@
-#include "../include/common.h"
-#include "../include/function.h"
-#include "../include/nodes.h"
-#include "../include/interpolation.h"
-#include "../include/error.h"
-#include "../include/fileio.h"
-#include <stdio.h>
+/**
+* @file main.c
+ * @brief Main program for performing and analyzing Hermite polynomial interpolation.
+ *
+ * This program analyzes Hermite interpolation using both uniformly spaced nodes
+ * and Chebyshev nodes for the function f(x) = sin(k*x/PI) * exp(-m*x/PI)
+ * and its derivative df(x) over the interval [a, b].
+ * It calculates interpolation results for varying numbers of nodes (n),
+ * computes the maximum absolute error and mean squared error for each case,
+ * saves the results and errors to data files (.dat, likely .csv for errors),
+ * and generates Gnuplot scripts (.gp) to visualize the interpolated functions
+ * and the error trends.
+ */
+#include "../include/common.h"      // Common definitions (constants like MAX_NODES, a, b, k, m, PI)
+#include "../include/function.h"    // Function f(x) and its derivative df(x)
+#include "../include/nodes.h"       // Node generation (uniform, Chebyshev)
+#include "../include/interpolation.h" // Interpolation algorithms (Hermite)
+#include "../include/error.h"       // Error calculation (max, MSE)
+#include "../include/fileio.h"      // File I/O (saving data, nodes, errors) and Gnuplot script generation
+#include <stdio.h>                 // Standard I/O for printf, scanf
 
+/**
+ * @brief Main entry point of the program.
+ *
+ * 1. Prompts the user for the maximum number of interpolation nodes (`maxNodes`).
+ * 2. Generates a dense set of data points for plotting the original function `f(x)` and saves it.
+ * 3. Iterates from n=1 to `maxNodes`:
+ *    a. Generates `n` uniform nodes.
+ *    b. Calculates `f(x)` and the derivative `df(x)` at these uniform nodes.
+ *    c. Saves the uniform nodes, function values, and derivative values (implicitly used by interpolation).
+ *    d. Performs Hermite interpolation using uniform nodes and saves the resulting curve data.
+ *    e. Calculates maximum absolute error and MSE for Hermite interpolation with uniform nodes.
+ *    f. Generates `n` Chebyshev nodes.
+ *    g. Calculates `f(x)` and `df(x)` at these Chebyshev nodes.
+ *    h. Saves the Chebyshev nodes, function values, and derivative values.
+ *    i. Performs Hermite interpolation using Chebyshev nodes and saves the resulting curve data.
+ *    j. Calculates maximum absolute error and MSE for Hermite interpolation with Chebyshev nodes.
+ *    k. Prints the error summary (max error, MSE) for the current `n`.
+ * 4. Saves the collected error trends (max error vs. n, MSE vs. n) for both node types to files.
+ * 5. Generates Gnuplot scripts for visualizing the individual interpolation results and the error trends.
+ * 6. Prints instructions for generating the plots using the saved Gnuplot scripts.
+ *
+ * @return 0 on successful execution, 1 on error (e.g., invalid user input).
+ */
 int main() {
     int maxNodes; // Variable to store the maximum number of nodes from user input
 

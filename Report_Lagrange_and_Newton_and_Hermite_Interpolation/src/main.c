@@ -2,7 +2,7 @@
  * @file main.c
  * @brief Main program for performing and analyzing polynomial interpolation.
  *
- * This program compares Lagrange and Newton interpolation methods using both
+ * This program compares Lagrange, Newton and Hermite interpolation methods using both
  * uniformly spaced nodes and Chebyshev nodes for the function
  * f(x) = sin(k*x/PI) * exp(-m*x/PI) over the interval [a, b].
  * It calculates interpolation results for varying numbers of nodes (n),
@@ -25,10 +25,10 @@
  * 2. Generates data points for the original function f(x).
  * 3. Iterates from n=1 to maxNodes:
  *    a. Generates uniform nodes and calculates f(x) at these nodes.
- *    b. Performs Lagrange and Newton interpolation using uniform nodes.
+ *    b. Performs Lagrange, Newton and Hermite interpolation using uniform nodes.
  *    c. Calculates errors for uniform nodes.
  *    d. Generates Chebyshev nodes and calculates f(x) at these nodes.
- *    e. Performs Lagrange and Newton interpolation using Chebyshev nodes.
+ *    e. Performs Lagrange, Newton and Hermite interpolation using Chebyshev nodes.
  *    f. Calculates errors for Chebyshev nodes.
  *    g. Saves node data and interpolation results to .dat files.
  *    h. Prints error summary periodically.

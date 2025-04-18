@@ -11,9 +11,9 @@
  * @brief Performs Lagrange interpolation.
  *
  * Calculates the interpolated value P(x) at a point 'x' using the formula:
- * P(x) = sum_{i=0}^{n-1} [ y_i * L_i(x) ]
+ * P(x) = ∑ (i = 0 to n - 1) [ y_i * L_i(x) ]
  * where L_i(x) is the i-th Lagrange basis polynomial:
- * L_i(x) = product_{j=0, j!=i}^{n-1} [ (x - x_j) / (x_i - x_j) ]
+ * L_i(x) = ∏ (j = 0 to n - 1, j != i) [ (x - x_j) / (x_i - x_j) ]
  *
  * @param x The point at which to evaluate the interpolation.
  * @param nodes Array of x-coordinates (x_i) of the interpolation nodes.
