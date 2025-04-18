@@ -128,7 +128,7 @@ int main() {
         printf("  Hermite (Uniform):      %.3e\n", hermite_uniform_errors[n-1]);
         printf("  Hermite (Chebyshev):    %.3e\n", hermite_chebyshev_errors[n-1]);
 
-        printf("\nean Squared Errors (MSE):\n");
+        printf("\nMean Squared Errors (MSE):\n");
         printf("  Hermite (Uniform):      %.3e\n", hermite_uniform_mse[n-1]);
         printf("  Hermite (Chebyshev):    %.3e\n", hermite_chebyshev_mse[n-1]);
     }

@@ -228,6 +228,6 @@ void generateGnuplotScript(int maxNodes) {
         // --- End of loop ---
 
         fclose(gnuplot_script); // Close the script file
-        printf("\nUtworzono skrypt gnuplot: plot_interpolation.gp\n"); // Confirmation message
+        printf("\nGenerated Gnuplot script: %s\n", script_path); // Confirmation message
     }
 }
