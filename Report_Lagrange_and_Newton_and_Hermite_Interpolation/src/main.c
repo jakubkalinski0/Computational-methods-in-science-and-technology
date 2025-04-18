@@ -79,17 +79,22 @@ int main() {
     double lagrange_chebyshev_errors[maxNodes];
     double newton_uniform_errors[maxNodes];
     double newton_chebyshev_errors[maxNodes];
+    double hermite_uniform_errors[maxNodes];
+    double hermite_chebyshev_errors[maxNodes];
 
     // Store mean squared error (MSE) for each method and node type, for n=1 to maxNodes
     double lagrange_uniform_mse[maxNodes];
     double lagrange_chebyshev_mse[maxNodes];
     double newton_uniform_mse[maxNodes];
     double newton_chebyshev_mse[maxNodes];
+    double hermite_uniform_mse[maxNodes];
+    double hermite_chebyshev_mse[maxNodes];
 
     // --- Temporary Arrays for Calculations within the loop ---
     // Max size needed is maxNodes
     double nodes[MAX_NODES];   // Stores x-coordinates of interpolation nodes for current 'n'
     double values[MAX_NODES];  // Stores y-coordinates (f(nodes)) for current 'n'
+    double derivatives[MAX_NODES];   // Stores function derivative (df(nodes)) values at nodes
 
     // Array to store the interpolated y-values at the plotting points 'x'
     double y_interp[numPoints];
@@ -142,6 +147,18 @@ int main() {
         newton_uniform_errors[n-1] = error_nu.max_error;
         newton_uniform_mse[n-1] = error_nu.mean_squared_error;
 
+        // Perform Hermite interpolation using uniform nodes
+        for (int j = 0; j < numPoints; j++) {
+            y_interp[j] = hermiteInterpolation(x[j], nodes, values, derivatives, n);
+        }
+        // Save the interpolated curve data
+        sprintf(filename, "hermite_uniform_n%d.dat", n);
+        saveDataToFile(filename, x, y_interp, numPoints);
+        // Calculate and store the errors (max and MSE)
+        ErrorResult error_hu = calculateError(y_true, y_interp, numPoints);
+        hermite_uniform_errors[n-1] = error_hu.max_error;
+        hermite_uniform_mse[n-1] = error_hu.mean_squared_error;
+
         // --- Part 2: Chebyshev Nodes ---
 
         // Generate 'n' Chebyshev nodes in the interval [a, b]
@@ -180,6 +197,18 @@ int main() {
         newton_chebyshev_errors[n-1] = error_nc.max_error;
         newton_chebyshev_mse[n-1] = error_nc.mean_squared_error;
 
+        // Perform Hermite interpolation using Chebyshev nodes
+        for (int j = 0; j < numPoints; j++) {
+            y_interp[j] = hermiteInterpolation(x[j], nodes, values, derivatives, n);
+        }
+        // Save the interpolated curve data
+        sprintf(filename, "hermite_chebyshev_n%d.dat", n);
+        saveDataToFile(filename, x, y_interp, numPoints);
+        // Calculate and store the errors (max and MSE)
+        ErrorResult error_hc = calculateError(y_true, y_interp, numPoints);
+        hermite_chebyshev_errors[n-1] = error_hc.max_error;
+        hermite_chebyshev_mse[n-1] = error_hc.mean_squared_error;
+
         // --- Print Progress/Results ---
          printf("\nResults for Number of Nodes: %d\n", n);
          printf("-----------------------------------\n");
@@ -188,12 +217,16 @@ int main() {
          printf("  Lagrange (Chebyshev): %.3e\n", lagrange_chebyshev_errors[n-1]);
          printf("  Newton (Uniform):     %.3e\n", newton_uniform_errors[n-1]);
          printf("  Newton (Chebyshev):   %.3e\n", newton_chebyshev_errors[n-1]);
+         printf("  Hermite (Uniform):    %.3e\n", hermite_uniform_errors[n-1]);
+         printf("  Hermite (Chebyshev):  %.3e\n", hermite_chebyshev_errors[n-1]);
 
          printf("\nMean Squared Errors (MSE):\n");
          printf("  Lagrange (Uniform):   %.3e\n", lagrange_uniform_mse[n-1]);
          printf("  Lagrange (Chebyshev): %.3e\n", lagrange_chebyshev_mse[n-1]);
          printf("  Newton (Uniform):     %.3e\n", newton_uniform_mse[n-1]);
          printf("  Newton (Chebyshev):   %.3e\n", newton_chebyshev_mse[n-1]);
+         printf("  Hermite (Uniform):    %.3e\n", hermite_uniform_mse[n-1]);
+         printf("  Hermite (Chebyshev):  %.3e\n", hermite_chebyshev_mse[n-1]);
     } // End of loop over 'n'
 
     // --- Post-Loop Processing ---
@@ -203,6 +236,8 @@ int main() {
     saveLagrangeChebyshevErrorsToFile(maxNodes, lagrange_chebyshev_errors, lagrange_chebyshev_mse);
     saveNewtonUniformErrorsToFile(maxNodes, newton_uniform_errors, newton_uniform_mse);
     saveNewtonChebyshevErrorsToFile(maxNodes, newton_chebyshev_errors, newton_chebyshev_mse);
+    saveHermiteUniformErrorsToFile(maxNodes, hermite_uniform_errors, hermite_uniform_mse);
+    saveHermiteChebyshevErrorsToFile(maxNodes, hermite_chebyshev_errors, hermite_chebyshev_mse);
 
     // Generate Gnuplot scripts for visualization
     // Script 1: Plots individual interpolation results for each 'n'
@@ -211,7 +246,8 @@ int main() {
     // Script 2: Plots the summary of maximum errors vs. number of nodes
     generateErrorPlotScript(maxNodes,
                           lagrange_uniform_errors, lagrange_chebyshev_errors,
-                          newton_uniform_errors, newton_chebyshev_errors);
+                          newton_uniform_errors, newton_chebyshev_errors,
+                          hermite_uniform_errors, hermite_chebyshev_errors);
 
     // --- Final Output and Instructions ---
     printf("\n=========================================================================\n");

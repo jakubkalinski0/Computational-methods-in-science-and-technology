@@ -46,12 +46,16 @@ void saveNodesToFile(const char* filename, double nodes[], double values[], int 
  * @param lagrange_chebyshev_errors Array of max errors for Lagrange with Chebyshev nodes.
  * @param newton_uniform_errors Array of max errors for Newton with uniform nodes.
  * @param newton_chebyshev_errors Array of max errors for Newton with Chebyshev nodes.
+ * @param hermite_uniform_errors Array of max errors for Hermite with uniform nodes.
+ * @param hermite_chebyshev_errors Array of max errors for Hermite with Chebyshev nodes.
  */
 void generateErrorPlotScript(int maxNodes,
                            double lagrange_uniform_errors[],
                            double lagrange_chebyshev_errors[],
                            double newton_uniform_errors[],
-                           double newton_chebyshev_errors[]);
+                           double newton_chebyshev_errors[],
+                           double hermite_uniform_errors[],
+                           double hermite_chebyshev_errors[]);
 
 /**
  * @brief Saves Lagrange/Uniform interpolation errors (max and MSE) to a CSV file.
@@ -84,6 +88,22 @@ void saveNewtonUniformErrorsToFile(int maxNodes, double errors[], double mse[]);
  * @param mse Array containing the mean squared errors for each node count.
  */
 void saveNewtonChebyshevErrorsToFile(int maxNodes, double errors[], double mse[]);
+
+/**
+ * @brief Saves Hermite/Uniform interpolation errors (max and MSE) to a CSV file.
+ * @param maxNodes The maximum number of nodes used.
+ * @param errors Array containing the maximum absolute errors for each node count.
+ * @param mse Array containing the mean squared errors for each node count.
+ */
+void saveHermiteUniformErrorsToFile(int maxNodes, double errors[], double mse[]);
+
+/**
+ * @brief Saves Hermite/Chebyshev interpolation errors (max and MSE) to a CSV file.
+ * @param maxNodes The maximum number of nodes used.
+ * @param errors Array containing the maximum absolute errors for each node count.
+ * @param mse Array containing the mean squared errors for each node count.
+ */
+void saveHermiteChebyshevErrorsToFile(int maxNodes, double errors[], double mse[]);
 
 /**
  * @brief Generates a Gnuplot script to plot individual interpolation results for each node count.
