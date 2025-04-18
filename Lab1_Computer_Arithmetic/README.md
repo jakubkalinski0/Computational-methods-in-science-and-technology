@@ -2,22 +2,22 @@
 
 ## Overview
 
-This project investigates the effects of floating-point precision and different calculation methods on numerical stability when evaluating a specific polynomial near a root. The polynomial is mathematically equivalent to `f(x) = (x - 1)^8`. Calculations are performed for `x` values within the range [0.99, 1.01], where `x=1` is a root, making this region sensitive to numerical errors, especially subtractive cancellation.
+This project investigates the effects of floating-point precision and different calculation methods on numerical stability when evaluating a specific polynomial near a root. The polynomial is mathematically equivalent to $f(x) = (x - 1)^8$. Calculations are performed for $x$ values within the range $[0.99, 1.01]$, where $x=1$ is a root, making this region sensitive to numerical errors, especially subtractive cancellation.
 
 The project implements and compares four different methods for calculating the function's value using `float`, `double`, and `long double` precision. The goal is to observe and explain the differences in the results obtained, highlighting concepts like numerical stability, subtractive cancellation, and the limitations of floating-point arithmetic.
 
 ## Problem Description (Original Polish Task)
 
-Wykonać obliczenia (dla zmiennych typu float, double, long double) wg podanych poniżej wzorów dla 101 równoodległych wartości x z przedziału [0.99, 1.01]:
+Wykonać obliczenia (dla zmiennych typu float, double, long double) wg podanych poniżej wzorów dla 101 równoodległych wartości $x$ z przedziału $[0.99, 1.01]$:
 
 *   $f(x) = x^8 - 8x^7 + 28x^6 - 56x^5 + 70x^4 - 56x^3 + 28x^2 - 8x + 1$
 *   $f(x) = (((((((x - 8)x + 28)x - 56)x + 70)x - 56)x + 28)x - 8)x + 1$
 *   $f(x) = (x - 1)^8$
-*   $f(x) = e^{(8 \ln \lvert x-1 \rvert)}$ , dla $x \neq 1$
+*   $f(x) = \exp(8 \ln |x-1|)$ , dla $x \neq 1$
 
 Porównać wyniki. Objaśnić różnice w wynikach.
 
-*(**Translation:** Perform calculations (for variables of type float, double, long double) according to the formulas below for 101 equidistant values of x from the interval [0.99, 1.01]: [formulas listed]. Compare the results. Explain the differences in the results.)*
+*(**Translation:** Perform calculations (for variables of type float, double, long double) according to the formulas below for 101 equidistant values of $x$ from the interval $[0.99, 1.01]$: [formulas listed]. Compare the results. Explain the differences in the results.)*
 
 
 ## Calculation Methods Implemented
@@ -25,16 +25,16 @@ Porównać wyniki. Objaśnić różnice w wynikach.
 The project implements and compares the following methods based on the problem description:
 
 1.  **Direct Polynomial Expansion:**
-    `f(x) = x^8 – 8x^7 + 28x^6 – 56x^5 + 70x^4 – 56x^3 + 28x^2 – 8x + 1`
+    $f(x) = x^8 – 8x^7 + 28x^6 – 56x^5 + 70x^4 – 56x^3 + 28x^2 – 8x + 1$
     (Implemented in `function1_*`)
 2.  **Horner's Method:** A nested multiplication scheme, often more stable and efficient for polynomial evaluation.
-    `f(x) = (((((((x − 8)x + 28)x − 56)x + 70)x − 56)x + 28)x − 8)x + 1`
+    $f(x) = (((((((x − 8)x + 28)x − 56)x + 70)x − 56)x + 28)x − 8)x + 1$
     (Implemented in `function2_*`)
 3.  **Direct Power Calculation:** The most direct form.
-    `f(x) = (x − 1)^8`
+    $f(x) = (x − 1)^8$
     (Implemented in `function3_*`)
-4.  **Exponential/Logarithmic Form:** Mathematically equivalent for x ≠ 1, but introduces potential issues from `log` and `exp` functions, especially near the singularity.
-    `f(x) = exp(8 * ln(|x−1|))` for x ≠ 1
+4.  **Exponential/Logarithmic Form:** Mathematically equivalent for $x \neq 1$, but introduces potential issues from `log` and `exp` functions, especially near the singularity.
+    $f(x) = \exp(8 \ln(|x−1|))$ for $x \neq 1$
     (Implemented in `function4_*`)
 
 Each method is implemented using three standard C floating-point types: `float`, `double`, and `long double`.
@@ -43,7 +43,7 @@ Each method is implemented using three standard C floating-point types: `float`,
 
 *   Calculates function values using 4 different mathematical formulations.
 *   Uses `float`, `double`, and `long double` precision for comparison.
-*   Generates 101 data points in the sensitive range [0.99, 1.01].
+*   Generates 101 data points in the sensitive range $[0.99, 1.01]$.
 *   Saves computed results to CSV files in multiple formats (combined and separate).
 *   Performs relative error analysis comparing `float` and `double` results against `long double` as a reference.
 *   Automatically generates Gnuplot scripts (`.gp`) for visualizing:
@@ -118,7 +118,7 @@ After running `make plots`, you will find the following generated files:
 
 *   **`data/` Directory:**
     *   `results.csv`: Combined results for all functions and precisions in a wide format.
-    *   `separate_results_f[1-4].csv`: Individual results for each function (columns: x, float, double, long_double).
+    *   `separate_results_f[1-4].csv`: Individual results for each function (columns: $x$, float, double, long_double).
     *   `separate_results_error_analysis.csv`: Relative errors of `float` and `double` results compared to `long double`.
 *   **`scripts/` Directory:**
     *   Multiple `.gp` files. These are Gnuplot scripts configured to read data from `data/` and generate plots in `plots/`.
