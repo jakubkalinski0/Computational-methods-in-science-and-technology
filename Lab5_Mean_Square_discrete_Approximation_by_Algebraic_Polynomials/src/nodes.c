@@ -62,10 +62,10 @@ void uniformNodes(double nodes[], int n) {
  *
  * The resulting nodes `x_k` are clustered near the endpoints `a` and `b`.
  * Handles n < 1 by printing a warning and returning.
- * The nodes are stored in the output array `nodes` in ascending order.
+ * The nodes are stored in the output array in ascending order.
  *
  * @param nodes Output array (size `n`) where the generated Chebyshev node x-coordinates
- *              will be stored in ascending order.
+ *              will be stored in ascending order. The caller must ensure the array has sufficient size.
  * @param n The number of nodes to generate (must be >= 1).
  */
 void chebyshevNodes(double nodes[], int n) {

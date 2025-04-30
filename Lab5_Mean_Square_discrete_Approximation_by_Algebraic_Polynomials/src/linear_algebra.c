@@ -39,7 +39,7 @@
  *
  * @param A Input square matrix (n x n), stored row-major. Modified in place to upper triangular form.
  * @param b Input right-hand side vector (size n). Modified in place during forward elimination.
- * @param x Output vector (size n) where the solution is stored.
+ * @param x Output vector (size n) where the solution is stored. The caller must allocate memory for `x`.
  * @param n The dimension of the system.
  * @return 0 on success.
  * @return -1 if singularity or near-singularity is detected. Error message printed to stderr.
@@ -81,7 +81,7 @@ int gaussianElimination(double *A, double *b, double *x, int n) {
         // --- Check for Singularity ---
         // After pivoting, check if the pivot element A[k][k] is too small.
         if (fabs(MAT(A, k, k, n)) < PIVOT_TOLERANCE) {
-            fprintf(stderr, "Error [gaussianElimination]: Matrix is singular or near-singular (pivot close to zero) at step k=%d.\n", k);
+            // fprintf(stderr, "Error [gaussianElimination]: Matrix is singular or near-singular (pivot close to zero) at step k=%d.\n", k);
             return -1; // Indicate failure due to singularity
         }
 
@@ -106,9 +106,9 @@ int gaussianElimination(double *A, double *b, double *x, int n) {
     } // End of forward elimination loop
 
     // --- Check Singularity of the Last Diagonal Element ---
-    // The loop finishes at n-2, so the last pivot A[n-1][n-1] needs checking.
-     if (fabs(MAT(A, n - 1, n - 1, n)) < PIVOT_TOLERANCE) {
-         fprintf(stderr, "Error [gaussianElimination]: Matrix is singular or near-singular (last diagonal element close to zero).\n");
+    // The loop finishes at n-2, so the last pivot A[n-1][n-1] needs checking if n > 0.
+     if (n > 0 && fabs(MAT(A, n - 1, n - 1, n)) < PIVOT_TOLERANCE) {
+         // fprintf(stderr, "Error [gaussianElimination]: Matrix is singular or near-singular (last diagonal element close to zero).\n");
          return -1; // Indicate failure
      }
 
@@ -122,6 +122,7 @@ int gaussianElimination(double *A, double *b, double *x, int n) {
             sum += MAT(A, i, j, n) * x[j]; // x[j] values are already known from previous steps
         }
         // Solve for x[i]: x[i] = (b[i] - sum) / A[i][i]
+        // Division by A[i][i] relies on the pivot check preventing division by near zero.
         x[i] = (b[i] - sum) / MAT(A, i, i, n);
     }
 

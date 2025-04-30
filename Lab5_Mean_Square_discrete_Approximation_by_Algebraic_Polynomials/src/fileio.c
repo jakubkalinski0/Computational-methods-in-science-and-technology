@@ -5,26 +5,29 @@
  * This file contains functions for:
  * - Saving (x, y) data points to files (e.g., original function, approximated polynomial).
  * - Saving the sample points used for the approximation.
- * - Saving calculated approximation errors (max absolute, MSE) vs. polynomial degree to a CSV file.
- * - Generating Gnuplot scripts to visualize the approximation results and error trends.
+ * - Saving calculated approximation errors (max absolute, MSE) vs. polynomial degree to a CSV file (optional, from old code).
+ * - Appending errors to a heatmap CSV file.
+ * - Generating Gnuplot scripts to visualize the approximation results (all individual plots, heatmap) and error trends (heatmap).
  * It assumes a standard directory structure ('data/', 'scripts/', 'plots/'). Gnuplot scripts
  * include commands to create these directories if they don't exist.
  */
 #include "../include/fileio.h" // Function prototypes and common includes (common.h)
-#include <stdio.h>             // Standard I/O functions (fopen, fprintf, fclose)
+#include <stdio.h>             // Standard I/O functions (fopen, fprintf, fclose, FILE)
 #include <stdlib.h>            // Standard library (e.g., for system() if needed, though avoided here)
-#include <string.h>            // For string manipulation (like sprintf)
+#include <string.h>            // For string manipulation (like snprintf)
+#include <math.h>              // For NAN, isnan
+
 // Global constants 'a' and 'b' from common.h (via fileio.h) are used in Gnuplot script generation.
 
 /**
- * @brief Saves a set of (x, y) data points to a file within the 'data/' directory.
+ * @brief Saves a set of (x, y) data points to a specified file within the 'data/' directory.
  *
  * Constructs the full file path by prepending "data/" to the provided `filename`.
  * Opens the file for writing and writes each (x, y) pair on a separate line,
  * formatted as "%lf %lf\n". Handles file opening errors by printing a message
  * to stderr and returning.
  *
- * @param filename The base name of the file (e.g., "original_function.dat"). Path becomes "data/<filename>".
+ * @param filename The base name of the file (e.g., "original_function_plot.dat", "approximation_degree5_points50.dat"). Path becomes "data/<filename>".
  * @param x Array of x-coordinates.
  * @param y Array of y-coordinates.
  * @param n The number of data points to save.
@@ -55,10 +58,9 @@ void saveDataToFile(const char* filename, double x[], double y[], int n) {
  *
  * Functionally identical to `saveDataToFile`, but conceptually used for the specific
  * purpose of saving the discrete (x_i, y_i) points used as input to the
- * `leastSquaresApprox` function. The name `saveNodesToFile` is retained for compatibility
- * but refers to "sample points" in the context of approximation.
+ * `leastSquaresApprox` function.
  *
- * @param filename The base name of the file (e.g., "sample_points.dat"). Path becomes "data/<filename>".
+ * @param filename The base name of the file (e.g., "sample_points_n50.dat"). Path becomes "data/<filename>".
  * @param points_x Array of sample point x-coordinates.
  * @param points_y Array of sample point y-coordinates.
  * @param n The number of sample points.
@@ -84,14 +86,9 @@ void saveNodesToFile(const char* filename, double points_x[], double points_y[],
 
 
 /**
- * @brief Saves approximation errors (max absolute and MSE) vs. degree to a CSV file.
- *
- * Creates or overwrites the specified CSV file. The filename provided should ideally
- * include the path (e.g., "data/approximation_errors_vs_degree.csv").
- * Writes a header row "Degree,MaxAbsoluteError,MeanSquaredError".
- * Then, for each degree `m` from 0 to `maxDegree`, writes a row containing
- * `m`, the corresponding `max_errors[m]`, and `mse_errors[m]`.
- * Errors are formatted using scientific notation (`%.10e`) for precision and readability.
+ * @brief Saves approximation errors (maximum absolute and MSE) versus polynomial degree to a CSV file.
+ * This function is from the original project's single-n analysis. It might not be needed
+ * if the heatmap CSV is the only error output. Kept for compatibility if desired.
  *
  * @param filename The full or relative path name for the output CSV file.
  * @param maxDegree The highest degree included in the error arrays (index `maxDegree`).
@@ -100,62 +97,83 @@ void saveNodesToFile(const char* filename, double points_x[], double points_y[],
  * @return 0 on success, -1 if the file could not be opened for writing.
  */
 int saveApproximationErrorsToFile(const char* filename, int maxDegree, double max_errors[], double mse_errors[]) {
-    // Open the specified file for writing.
-    FILE *err_file = fopen(filename, "w");
-    if (err_file == NULL) {
-        // Use stderr for system-level error messages.
-        fprintf(stderr, "Error [saveApproximationErrorsToFile]: Cannot open file '%s' for writing approximation errors.\n", filename);
-        return -1; // Return error code
-    }
-
-    // Write the header row for the CSV file. Using English headers for broad compatibility (e.g., with Gnuplot).
-    fprintf(err_file, "Degree,MaxAbsoluteError,MeanSquaredError\n");
-
-    // Write the error data for each polynomial degree from 0 up to maxDegree.
-    for (int m_deg = 0; m_deg <= maxDegree; m_deg++) {
-         // Write degree, max absolute error, mean squared error.
-         // Format with %.10e for good precision with potentially small or large error values.
-         // Handle potential NaN values gracefully if they exist in the arrays (Gnuplot often skips these).
-         fprintf(err_file, "%d,%.10e,%.10e\n", m_deg, max_errors[m_deg], mse_errors[m_deg]);
-    }
-
-    // Close the file stream.
-    fclose(err_file);
-
-    // Optional: Confirmation message (often handled in the calling function, e.g., main).
-    // printf("Approximation errors vs. degree saved to %s\n", filename);
-
-    return 0; // Indicate success
+    // This function is likely deprecated by the heatmap CSV.
+    // Implement if needed, otherwise, it can be removed or left as a stub.
+     fprintf(stderr, "Warning: saveApproximationErrorsToFile is deprecated in heatmap mode.\n");
+     return -1; // Indicate not implemented or not used
 }
 
 
 /**
- * @brief Generates a Gnuplot script ('scripts/plot_approximations.gp') to plot individual approximation results.
+ * @brief Saves approximation errors (N, M, Max Absolute, MSE) to a CSV file for heatmap plotting.
  *
- * Creates the Gnuplot script file. When executed, this script generates multiple PNG images,
- * one for each polynomial degree `m` from 0 to `maxDegree`. Each plot compares the
- * original function, the approximating polynomial P_m(x), and the sample points used.
- * Assumes data files (`original_function.dat`, `approximation_degree*.dat`, `sample_points.dat`)
- * are located in the 'data/' directory. Output plots are saved to the 'plots/' directory.
- * Includes Gnuplot `system` command to ensure 'data' and 'plots' directories exist.
+ * This function is designed to write a single row of data for a specific (n, m) combination
+ * to an already opened file stream. The file must be opened and the header written by the caller.
  *
- * @param maxDegree The maximum polynomial degree `m` for which plots are generated.
- * @param numSamplePoints The number of sample points `n` used, included in output filenames and plot titles.
+ * @param file The already opened FILE pointer for the heatmap CSV file.
+ * @param n The number of sample points.
+ * @param m The polynomial degree.
+ * @param max_error The calculated maximum absolute error for this (n, m).
+ * @param mse_error The calculated mean squared error for this (n, m).
  */
-void generateApproxGnuplotScript(int maxDegree, int numSamplePoints) {
-    char script_path[256];
-    // Define the path for the Gnuplot script file within the 'scripts/' directory.
-    snprintf(script_path, sizeof(script_path), "scripts/plot_approximations.gp");
+void appendErrorToHeatmapFile(FILE* file, int n, int m, double max_error, double mse_error) {
+    // Check if the file pointer is valid
+    if (file == NULL) {
+        fprintf(stderr, "Error [appendErrorToHeatmapFile]: Invalid file pointer.\n");
+        return;
+    }
 
-    FILE *gnuplot_script = fopen(script_path, "w"); // Open script file for writing
+    // Write n, m, max_error, and mse_error to the file.
+    // Use %.10e for scientific notation with good precision.
+    // Check for NAN values explicitly as fprintf("%f", NAN) is implementation-defined;
+    // standard requires "NAN" output for %a, but %.10e might vary. Writing "NAN" string is safer.
+    if (isnan(max_error)) {
+        if (isnan(mse_error)) {
+             fprintf(file, "%d,%d,NAN,NAN\n", n, m);
+        } else {
+             fprintf(file, "%d,%d,NAN,%.10e\n", n, m, mse_error);
+        }
+    } else {
+        if (isnan(mse_error)) {
+             fprintf(file, "%d,%d,%.10e,NAN\n", n, m, max_error);
+        } else {
+             fprintf(file, "%d,%d,%.10e,%.10e\n", n, m, max_error, mse_error);
+        }
+    }
+}
+
+
+/**
+ * @brief Generates a single Gnuplot script ('scripts/plot_all_approximations.gp')
+ *        to visualize individual approximation results for ALL (n, m) combinations.
+ *
+ * Creates a Gnuplot script that, when executed, generates a series of PNG plots,
+ * one for each valid (n, m) combination (where m < n) within the analyzed ranges.
+ * Each plot compares:
+ * 1. The original function `f(x)` (read from 'data/original_function_plot.dat').
+ * 2. The approximating polynomial `P_m(x)` (read from 'data/approximation_degree{m}_points{n}.dat').
+ * 3. The discrete sample points (x_i, y_i) used for the approximation (read from 'data/sample_points_n{n}.dat').
+ * Output plots (.png) are saved in the 'plots/' directory with names like 'plots/approximation_m{m}_n{n}.png'.
+ * The script uses Gnuplot's `do for` loops to iterate through n and m,
+ * and includes commands to ensure the 'plots/' and 'data/' directories exist.
+ *
+ * @param min_n Minimum number of sample points included in the data.
+ * @param max_n Maximum number of sample points included in the data.
+ * @param max_m Maximum polynomial degree included in the data.
+ */
+void generateAllIndividualApproxScripts(int min_n, int max_n, int max_m) {
+    char script_path[256];
+    snprintf(script_path, sizeof(script_path), "scripts/plot_all_approximations.gp");
+
+    FILE *gnuplot_script = fopen(script_path, "w");
     if (gnuplot_script == NULL) {
-        fprintf(stderr,"Error [generateApproxGnuplotScript]: Cannot open file %s for writing.\n", script_path);
+        fprintf(stderr,"Error [generateAllIndividualApproxScripts]: Cannot open file %s for writing.\n", script_path);
         return;
     }
 
     // --- Common Gnuplot Settings ---
-    fprintf(gnuplot_script, "# Gnuplot script: Plot individual approximation results\n");
-    fprintf(gnuplot_script, "# Generated by: generateApproxGnuplotScript\n\n");
+    fprintf(gnuplot_script, "# Gnuplot script: Plot individual approximation results for all (n, m) combinations\n");
+    fprintf(gnuplot_script, "# Generated by: generateAllIndividualApproxScripts\n\n");
     fprintf(gnuplot_script, "set terminal pngcairo enhanced size 1200,800 font 'Arial,12'\n"); // Output format
     fprintf(gnuplot_script, "set grid\n");                         // Enable grid lines
     fprintf(gnuplot_script, "set key top right outside spacing 1.1\n"); // Legend position and spacing
@@ -165,89 +183,205 @@ void generateApproxGnuplotScript(int maxDegree, int numSamplePoints) {
     fprintf(gnuplot_script, "set xrange [%.4f:%.4f]\n", a, b);
     // Set a fixed y-range for consistency; adjust if function values vary significantly.
     fprintf(gnuplot_script, "set yrange [-15:15]\n");              // Example range, adjust as needed
-    // Use Gnuplot's system command to ensure output directories exist (safer than C system call sometimes)
+    // Use Gnuplot's system command to ensure output directories exist
     fprintf(gnuplot_script, "system 'mkdir -p plots data'\n\n");
 
-    // --- Loop Through Degrees 'm' to Generate Plot Commands ---
-    for (int m = 0; m <= maxDegree; m++) {
-        fprintf(gnuplot_script, "# --- Plot for Degree m = %d ---\n", m);
-        // Define output PNG filename for this degree
-        fprintf(gnuplot_script, "set output 'plots/approximation_m%d_n%d.png'\n", m, numSamplePoints);
-        // Set plot title dynamically based on degree and number of points
-        fprintf(gnuplot_script, "set title sprintf(\"Least Squares Approximation (n=%d points, degree m=%d)\", %d, %d)\n", numSamplePoints, m, numSamplePoints, m);
+    // --- Gnuplot Loops to Generate Plots for Each (n, m) ---
+    // Iterate through n values
+    fprintf(gnuplot_script, "do for [n=%d:%d] {\n", min_n, max_n);
+    // Iterate through m values
+    fprintf(gnuplot_script, "    do for [m=0:%d] {\n", max_m);
 
-        // Gnuplot plot command:
-        // 1. Original function (dashed blue line)
-        // 2. Approximating polynomial P_m(x) (solid red line)
-        // 3. Sample points (black points)
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original function f(x)', \\\n");
-        fprintf(gnuplot_script, "     'data/approximation_degree%d_points%d.dat' with lines lw 3 lc rgb 'red' title sprintf('Approximating P_{%d}(x)', %d), \\\n", m, numSamplePoints, m, m);
-        fprintf(gnuplot_script, "     'data/sample_points.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Sample points (x_i, y_i)'\n\n"); // pt 7=circle, ps=point size
-    }
-    // --- End of Loop ---
+    // Check if m < n, which is required for the least squares calculation to be valid
+    // Note: Gnuplot checks this as a string comparison, which works for integers.
+    // We also need to check if the data file for this (n,m) exists, but it's simpler
+    // to rely on the C code to only *create* the file if m < n and calculation succeeds.
+    // Gnuplot will silently skip plotting a non-existent file.
+    fprintf(gnuplot_script, "        if (m < n) {\n");
+
+    // Define data file names for this specific n and m
+    fprintf(gnuplot_script, "            sample_file = sprintf(\"data/sample_points_n%%d.dat\", n)\n");
+    fprintf(gnuplot_script, "            approx_file = sprintf(\"data/approximation_degree%%d_points%%d.dat\", m, n)\n");
+
+    // Define output PNG filename for this specific n and m
+    fprintf(gnuplot_script, "            set output sprintf('plots/approximation_m%%d_n%%d.png', m, n)\n");
+
+    // Set plot title dynamically based on n and m
+    fprintf(gnuplot_script, "            set title sprintf(\"Least Squares Approximation (n=%%d points, degree m=%%d)\", n, m)\n");
+
+    // Gnuplot plot command:
+    // 1. Original function (dashed blue line) - this file is the same for all plots
+    // 2. Approximating polynomial P_m(x) (solid red line) - use approx_file variable
+    // 3. Sample points (black points) - use sample_file variable
+    fprintf(gnuplot_script, "            plot 'data/original_function_plot.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original function f(x)', \\\n");
+    fprintf(gnuplot_script, "                 approx_file with lines lw 3 lc rgb 'red' title sprintf('Approximating P_{%%d}(x)', m), \\\n");
+    fprintf(gnuplot_script, "                 sample_file with points pt 7 ps 1.5 lc rgb 'black' title 'Sample points (x_i, y_i)'\n"); // pt 7=circle, ps=point size
+
+    fprintf(gnuplot_script, "        }\n"); // End if (m < n)
+    fprintf(gnuplot_script, "    }\n"); // End do for m
+    fprintf(gnuplot_script, "}\n"); // End do for n
 
     fclose(gnuplot_script); // Close the script file
-    // Confirmation message printed to standard output
-    printf("\nGenerated Gnuplot script for approximations: %s\n", script_path);
+    printf("\nGenerated Gnuplot script for all individual approximations: %s\n", script_path);
 }
 
-/**
- * @brief Generates a Gnuplot script ('scripts/plot_approx_errors.gp') to plot approximation errors vs. degree.
- *
- * Creates the Gnuplot script file. When executed, this script generates a single PNG image
- * ('plots/approximation_errors.png') showing the Maximum Absolute Error and Mean Squared Error (MSE)
- * as a function of the polynomial degree `m` (from 0 to `maxDegree`).
- * It reads the error data from the CSV file specified (typically 'data/approximation_errors_vs_degree.csv').
- * Uses a logarithmic y-axis to better visualize error trends over potentially large ranges.
- * Includes Gnuplot `system` command to ensure 'data' and 'plots' directories exist.
- *
- * @param maxDegree The maximum polynomial degree `m` to include on the x-axis of the plot.
- */
-void generateApproxErrorPlotScript(int maxDegree) {
-    char script_path[256];
-    // Define the path for the Gnuplot script file within the 'scripts/' directory.
-    snprintf(script_path, sizeof(script_path), "scripts/plot_approx_errors.gp");
 
-    FILE *gnuplot_script = fopen(script_path, "w"); // Open script file for writing
+/**
+ * @brief Generates Gnuplot script for plotting the Max Absolute Error heatmap.
+ *
+ * The plot shows Max Absolute Error as a function of 'm' (x-axis)
+ * and 'n' (y-axis, reversed). The color scale (z-axis) is logarithmic
+ * with a fixed minimum to better show variation in small errors.
+ *
+ * @param min_n Minimum number of sample points in the data.
+ * @param max_n Maximum number of sample points in the data.
+ * @param max_m Maximum polynomial degree in the data.
+ */
+void generateApproxMaxErrorHeatmapScript(int min_n, int max_n, int max_m) {
+    char script_path[256];
+    snprintf(script_path, sizeof(script_path), "scripts/plot_approx_max_error_heatmap.gp");
+
+    FILE *gnuplot_script = fopen(script_path, "w");
     if (gnuplot_script == NULL) {
-        fprintf(stderr, "Error [generateApproxErrorPlotScript]: Cannot open file %s for writing.\n", script_path);
+        fprintf(stderr,"Error [generateApproxMaxErrorHeatmapScript]: Cannot open file %s for writing.\n", script_path);
         return;
     }
 
-    // --- Gnuplot Script Commands ---
-    fprintf(gnuplot_script, "# Gnuplot script: Plot approximation errors vs. polynomial degree\n");
-    fprintf(gnuplot_script, "# Generated by: generateApproxErrorPlotScript\n\n");
+    fprintf(gnuplot_script, "# Gnuplot script: Heatmap of Max Absolute Error vs. m and n\n"); // Updated comment
+    fprintf(gnuplot_script, "# Generated by: generateApproxMaxErrorHeatmapScript\n\n");
     fprintf(gnuplot_script, "set terminal pngcairo enhanced size 1200,800 font 'Arial,12'\n");
-    fprintf(gnuplot_script, "set output 'plots/approximation_errors.png'\n"); // Output PNG filename
-    fprintf(gnuplot_script, "set title 'Approximation Errors vs. Polynomial Degree (m)'\n"); // Plot title
-    fprintf(gnuplot_script, "set xlabel 'Polynomial Degree (m)'\n"); // X-axis label
-    fprintf(gnuplot_script, "set ylabel 'Error (Log Scale)'\n");      // Y-axis label
-    fprintf(gnuplot_script, "set grid\n");                         // Enable grid lines
-    fprintf(gnuplot_script, "set key top right\n");                // Legend position
-    fprintf(gnuplot_script, "set logscale y\n");                   // Use logarithmic scale for the Y axis (errors)
-    // Optional: Set specific formatting for the y-axis labels if needed
-    fprintf(gnuplot_script, "set format y \"10^{%%L}\"\n");          // Format y-axis labels as powers of 10
+    fprintf(gnuplot_script, "set output 'plots/approximation_max_error_heatmap.png'\n"); // Output file name
+    fprintf(gnuplot_script, "set title 'Maximum Error - Approximation (Axes Reversed)'\n"); // Plot title
 
-    // Set the x-axis range based on the maximum degree analyzed.
-    fprintf(gnuplot_script, "set xrange [0:%d]\n", maxDegree);
-    // Optional: Set a minimum y-range to avoid plotting extremely small errors or focusing the plot.
-    fprintf(gnuplot_script, "set yrange [1e-10:*]\n");             // Example: show errors from 1e-10 upwards
+    fprintf(gnuplot_script, "set xlabel 'Approximation Degree (m)'\n"); // X-axis label
+    fprintf(gnuplot_script, "set ylabel 'Number of points (n)'\n");      // Y-axis label
 
-    // Ensure required directories exist using Gnuplot's system command.
-    fprintf(gnuplot_script, "system 'mkdir -p plots data'\n\n");
+    // Set axis ranges
+    // m from 0 to max_m
+    fprintf(gnuplot_script, "set xrange [-0.5:%d]\n", max_m);
+    // n from max_n down to min_n-1 (reversed Y axis)
+    fprintf(gnuplot_script, "set yrange [%d:%d]\n", max_n, min_n - 1);
 
-    // Define the input data file (CSV generated by saveApproximationErrorsToFile)
-    const char data_file[] = "data/approximation_errors_vs_degree.csv";
+    fprintf(gnuplot_script, "set grid\n");
 
-    // Gnuplot plot command:
-    // Read data from the CSV file.
-    fprintf(gnuplot_script, "# Plot errors reading from CSV file\n");
-    fprintf(gnuplot_script, "set datafile separator ','\n");       // Set the column separator to comma for CSV
-    // Plot Column 1 (Degree) vs Column 2 (MaxAbsError) and Column 1 vs Column 3 (MSE)
-    fprintf(gnuplot_script, "plot '%s' using 1:2 with linespoints pt 7 lc rgb 'red' title 'Maximum Absolute Error', \\\n", data_file); // pt 7: circle
-    fprintf(gnuplot_script, "     '%s' using 1:3 with linespoints pt 6 lc rgb 'blue' title 'Mean Squared Error (MSE)'\n", data_file);     // pt 6: square
+    // Set logarithmic scale for the color (error)
+    fprintf(gnuplot_script, "set logscale cb\n");
+    // Set the range for the color bar using automatic data range
+    // [*:*] tells Gnuplot to determine the range automatically from the data.
+    fprintf(gnuplot_script, "set cbrange [*:*]\n"); // From the minimum found error to the maximum found error
+    fprintf(gnuplot_script, "set cblabel 'Maximum Error (Log Scale)'\n"); // Color bar label
+    fprintf(gnuplot_script, "set format cb \"10^{%%L}\"\n"); // Format color bar labels in 10^x notation
 
-    fclose(gnuplot_script); // Close the script file
-    // Confirmation message printed to standard output
-    printf("\nGenerated Gnuplot script for errors: %s\n", script_path);
+    // Define a custom color palette (e.g., from black to yellow)
+    fprintf(gnuplot_script, "set palette defined ( 0 \"black\", 0.25 \"blue\", 0.5 \"magenta\", 0.75 \"orange\", 1 \"yellow\" )\n");
+    // Configure pm3d for drawing a heatmap. 'interpolate 10,10' smooths the colors.
+    fprintf(gnuplot_script, "set pm3d map interpolate 10,10\n");
+
+    // Set view as map (2D top-down projection)
+    fprintf(gnuplot_script, "set view map\n");
+
+    // Set data separator in CSV file to comma
+    fprintf(gnuplot_script, "set datafile separator ','\n");
+
+    // Use splot to draw from a 3D data file (or 2D data with color mapped from a column)
+    // 'data/approximation_heatmap_errors.csv': specifies the data file
+    // 'using 2:1:3': specifies which columns to use: X=column 2 (m), Y=column 1 (n), Z(color)=column 3 (MaxError)
+    // 'with pm3d': tells Gnuplot to draw using the pm3d colors (creating the heatmap)
+    // 'notitle': prevents Gnuplot from adding an automatic legend entry for this data
+    // The '\' indicates that the command continues on the next line.
+    fprintf(gnuplot_script, "splot 'data/approximation_heatmap_errors.csv' using 2:1:3 with pm3d notitle, \\\n");
+    // Second plot element: Draws lines to represent a grid overlay.
+    // '' : refers to the same data file as the previous part of the splot command.
+    // 'using 2:1:(0)': uses columns 2 (m) and 1 (n) for X and Y, but sets Z coordinate to 0
+    // 'with lines': connects points with lines
+    // 'lc rgb 'white' lw 0.25': sets line color to white and line width to 0.25
+    // 'notitle': prevents legend entry
+    // This creates a subtle white grid aligned with the data points on the heatmap.
+    fprintf(gnuplot_script, "      '' using 2:1:(0) with lines lc rgb 'white' lw 0.25 notitle\n");
+
+    // Ensure directories exist (safer in C, but can also be done in Gnuplot)
+    fprintf(gnuplot_script, "system 'mkdir -p plots data'\n");
+
+    fclose(gnuplot_script);
+    printf("Generated Gnuplot script for Max Error heatmap: %s\n", script_path);
+}
+
+/**
+ * @brief Generates Gnuplot script for plotting the Mean Squared Error heatmap.
+ *
+ * The plot shows MSE as a function of 'm' (x-axis)
+ * and 'n' (y-axis, reversed). The color scale (z-axis) is logarithmic
+ * with a fixed minimum to better show variation in small errors.
+ *
+ * @param min_n Minimum number of sample points in the data.
+ * @param max_n Maximum number of sample points in the data.
+ * @param max_m Maximum polynomial degree in the data.
+ */
+void generateApproxMseHeatmapScript(int min_n, int max_n, int max_m) {
+    char script_path[256];
+    snprintf(script_path, sizeof(script_path), "scripts/plot_approx_mse_heatmap.gp");
+
+    FILE *gnuplot_script = fopen(script_path, "w");
+    if (gnuplot_script == NULL) {
+        fprintf(stderr,"Error [generateApproxMseHeatmapScript]: Cannot open file %s for writing.\n", script_path);
+        return;
+    }
+
+    fprintf(gnuplot_script, "# Gnuplot script: Heatmap of Mean Squared Error vs. m and n\n"); // Updated comment
+    fprintf(gnuplot_script, "# Generated by: generateApproxMseHeatmapScript\n\n");
+    fprintf(gnuplot_script, "set terminal pngcairo enhanced size 1200,800 font 'Arial,12'\n");
+    fprintf(gnuplot_script, "set output 'plots/approximation_mse_heatmap.png'\n"); // Output file name
+    fprintf(gnuplot_script, "set title 'Mean Squared Error (MSE) - Approximation (Axes Reversed)'\n"); // Plot title
+
+    fprintf(gnuplot_script, "set xlabel 'Approximation Degree (m)'\n"); // X-axis label
+    fprintf(gnuplot_script, "set ylabel 'Number of points (n)'\n");      // Y-axis label
+
+    // Set axis ranges
+    // m from 0 to max_m
+    fprintf(gnuplot_script, "set xrange [-0.5:%d]\n", max_m);
+    // n from max_n down to min_n-1 (reversed Y axis)
+    fprintf(gnuplot_script, "set yrange [%d:%d]\n", max_n, min_n - 1);
+
+    fprintf(gnuplot_script, "set grid\n");
+
+    // Set logarithmic scale for the color (error)
+    fprintf(gnuplot_script, "set logscale cb\n");
+    // Set the range for the color bar using automatic data range
+    // [*:*] tells Gnuplot to determine the range automatically from the data.
+    fprintf(gnuplot_script, "set cbrange [*:*]\n"); // From the minimum found error to the maximum found error
+    fprintf(gnuplot_script, "set cblabel 'Mean Squared Error (Log Scale)'\n"); // Color bar label
+    fprintf(gnuplot_script, "set format cb \"10^{%%L}\"\n"); // Format color bar labels in 10^x notation
+
+    // Define a custom color palette (e.g., from black to yellow)
+    fprintf(gnuplot_script, "set palette defined ( 0 \"black\", 0.25 \"blue\", 0.5 \"magenta\", 0.75 \"orange\", 1 \"yellow\" )\n");
+    // Configure pm3d for drawing a heatmap. 'interpolate 10,10' smooths the colors.
+    fprintf(gnuplot_script, "set pm3d map interpolate 10,10\n");
+
+    // Set view as map
+    fprintf(gnuplot_script, "set view map\n");
+
+    // Set data separator in CSV file
+    fprintf(gnuplot_script, "set datafile separator ','\n");
+
+    // Use splot to draw from a 3D data file (or 2D data with color mapped from a column)
+    // 'data/approximation_heatmap_errors.csv': specifies the data file
+    // 'using 2:1:3': specifies which columns to use: X=column 2 (m), Y=column 1 (n), Z(color)=column 3 (MaxError)
+    // 'with pm3d': tells Gnuplot to draw using the pm3d colors (creating the heatmap)
+    // 'notitle': prevents Gnuplot from adding an automatic legend entry for this data
+    // The '\' indicates that the command continues on the next line.
+    fprintf(gnuplot_script, "splot 'data/approximation_heatmap_errors.csv' using 2:1:4 with pm3d notitle, \\\n");
+    // Second plot element: Draws lines to represent a grid overlay.
+    // '' : refers to the same data file as the previous part of the splot command.
+    // 'using 2:1:(0)': uses columns 2 (m) and 1 (n) for X and Y, but sets Z coordinate to 0
+    // 'with lines': connects points with lines
+    // 'lc rgb 'white' lw 0.25': sets line color to white and line width to 0.25
+    // 'notitle': prevents legend entry
+    // This creates a subtle white grid aligned with the data points on the heatmap.
+    fprintf(gnuplot_script, "      '' using 2:1:(0) with lines lc rgb 'white' lw 0.25 notitle\n");
+
+    // Ensure directories exist
+    fprintf(gnuplot_script, "system 'mkdir -p plots data'\n");
+
+    fclose(gnuplot_script);
+    printf("Generated Gnuplot script for MSE heatmap: %s\n", script_path);
 }

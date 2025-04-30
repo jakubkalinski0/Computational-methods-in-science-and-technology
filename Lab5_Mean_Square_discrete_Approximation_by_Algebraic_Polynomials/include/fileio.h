@@ -23,7 +23,7 @@
  * The function automatically prepends "data/" to the provided `filename`.
  * It ensures the `data/` directory is expected to exist (scripts ensure its creation).
  *
- * @param filename The base name of the file (e.g., "original_function.dat", "approximation_degree5.dat").
+ * @param filename The base name of the file (e.g., "original_function_plot.dat", "approximation_degree5_points50.dat").
  *                 The final path will be "data/<filename>".
  * @param x Array of x-coordinates for the data points.
  * @param y Array of y-coordinates for the data points.
@@ -35,28 +35,24 @@ void saveDataToFile(const char* filename, double x[], double y[], int n);
  * @brief Saves the sample points (x_i, y_i) used for generating the least-squares approximation.
  *
  * This function saves the discrete points that the approximation process attempts to fit.
- * Files are saved in the 'data/' subdirectory. Although named `saveNodesToFile` for
- * historical reasons (reuse from interpolation code), in the context of approximation,
- * these are the *sample points*, not necessarily interpolation nodes.
+ * Files are saved in the 'data/' subdirectory.
  *
- * @param filename The base name of the file (e.g., "sample_points.dat").
+ * @param filename The base name of the file (e.g., "sample_points_n50.dat").
  *                 The final path will be "data/<filename>".
- * @param points_x Array of x-coordinates of the sample points.
- * @param points_y Array of y-coordinates (function values f(x_i)) of the sample points.
+ * @param points_x Array of sample point x-coordinates.
+ * @param points_y Array of sample point y-coordinates.
  * @param n The number of sample points.
  */
-void saveNodesToFile(const char* filename, double points_x[], double points_y[], int n); // Function reused for sample points
+void saveNodesToFile(const char* filename, double points_x[], double points_y[], int n);
 
 /**
  * @brief Saves approximation errors (maximum absolute and MSE) versus polynomial degree to a CSV file.
  *
- * Creates a CSV file at the specified `filename` path. It's recommended this path
- * includes the "data/" subdirectory (e.g., "data/approximation_errors.csv").
- * The CSV file contains columns: Degree, MaxAbsoluteError, MeanSquaredError.
- * This file is typically used as input for plotting error trends.
+ * This function is from the original project's single-n analysis. It might not be needed
+ * if the heatmap CSV is the only error output. Kept for compatibility if desired.
  *
  * @param filename The full or relative path name of the CSV file to save the errors to
- *                 (e.g., "data/approximation_errors_vs_degree.csv").
+ *                 (e.g., "data/approximation_errors_vs_degree_n50.csv").
  * @param maxDegree The highest polynomial degree for which error data is provided.
  *                  The input arrays `max_errors` and `mse_errors` must have size at least `maxDegree + 1`.
  * @param max_errors Array containing the maximum absolute errors, indexed by degree [0...maxDegree].
@@ -66,37 +62,66 @@ void saveNodesToFile(const char* filename, double points_x[], double points_y[],
  */
 int saveApproximationErrorsToFile(const char* filename, int maxDegree, double max_errors[], double mse_errors[]);
 
+
 /**
- * @brief Generates a Gnuplot script ('scripts/plot_approximations.gp') to visualize individual approximation results.
+ * @brief Saves approximation errors (N, M, Max Absolute, MSE) to a CSV file for heatmap plotting.
+ *
+ * This function is designed to write a single row of data for a specific (n, m) combination
+ * to an already opened file stream. The file must be opened and the header written by the caller.
+ *
+ * @param file The already opened FILE pointer for the heatmap CSV file.
+ * @param n The number of sample points.
+ * @param m The polynomial degree.
+ * @param max_error The calculated maximum absolute error for this (n, m).
+ * @param mse_error The calculated mean squared error for this (n, m).
+ */
+void appendErrorToHeatmapFile(FILE* file, int n, int m, double max_error, double mse_error);
+
+
+/**
+ * @brief Generates a single Gnuplot script ('scripts/plot_all_approximations.gp')
+ *        to visualize individual approximation results for ALL (n, m) combinations.
  *
  * Creates a Gnuplot script that, when executed, generates a series of PNG plots,
- * one for each polynomial degree `m` from 0 to `maxDegree`. Each plot compares:
- * 1. The original function `f(x)` (read from 'data/original_function.dat').
+ * one for each valid (n, m) combination (where m < n) within the analyzed ranges.
+ * Each plot compares:
+ * 1. The original function `f(x)` (read from 'data/original_function_plot.dat').
  * 2. The approximating polynomial `P_m(x)` (read from 'data/approximation_degree{m}_points{n}.dat').
- * 3. The discrete sample points (x_i, y_i) used for the approximation (read from 'data/sample_points.dat').
- * Output plots (.png) are saved in the 'plots/' directory with names like 'plots/approximation_m{m}_n{numSamplePoints}.png'.
- * The script includes commands to ensure the 'plots/' and 'data/' directories exist.
+ * 3. The discrete sample points (x_i, y_i) used for the approximation (read from 'data/sample_points_n{n}.dat').
+ * Output plots (.png) are saved in the 'plots/' directory with names like 'plots/approximation_m{m}_n{n}.png'.
+ * The script uses Gnuplot's `do for` loops to iterate through n and m,
+ * and includes commands to ensure the 'plots/' and 'data/' directories exist.
  *
- * @param maxDegree The maximum polynomial degree `m` for which plots will be generated.
- * @param numSamplePoints The number of sample points `n` used in the approximation (included in filenames and titles).
+ * @param min_n Minimum number of sample points included in the data.
+ * @param max_n Maximum number of sample points included in the data.
+ * @param max_m Maximum polynomial degree included in the data.
  */
-void generateApproxGnuplotScript(int maxDegree, int numSamplePoints);
+void generateAllIndividualApproxScripts(int min_n, int max_n, int max_m);
 
 /**
- * @brief Generates a Gnuplot script ('scripts/plot_approx_errors.gp') to visualize approximation errors vs. degree.
+ * @brief Generates Gnuplot script for plotting the Max Absolute Error heatmap.
  *
- * Creates a Gnuplot script that plots the maximum absolute error and Mean Squared Error (MSE)
- * as a function of the approximating polynomial degree `m`.
- * The script reads data from a CSV file (typically 'data/approximation_errors_vs_degree.csv'
- * as generated by `saveApproximationErrorsToFile`).
- * The output plot is saved as 'plots/approximation_errors.png'.
- * It uses a logarithmic scale for the y-axis (error) for better visualization of trends
- * across potentially many orders of magnitude.
- * The script includes commands to ensure the 'plots/' and 'data/' directories exist.
+ * The plot shows Max Absolute Error as a function of 'm' (x-axis)
+ * and 'n' (y-axis, reversed). The color scale (z-axis) is logarithmic
+ * with a fixed minimum to better show variation in small errors.
  *
- * @param maxDegree The maximum polynomial degree `m` plotted on the x-axis. This determines the x-range of the plot.
+ * @param min_n Minimum number of sample points in the data.
+ * @param max_n Maximum number of sample points in the data.
+ * @param max_m Maximum polynomial degree in the data.
  */
-void generateApproxErrorPlotScript(int maxDegree);
+void generateApproxMaxErrorHeatmapScript(int min_n, int max_n, int max_m);
 
+/**
+ * @brief Generates Gnuplot script for plotting the Mean Squared Error heatmap.
+ *
+ * The plot shows MSE as a function of 'm' (x-axis)
+ * and 'n' (y-axis, reversed). The color scale (z-axis) is logarithmic
+ * with a fixed minimum to better show variation in small errors.
+ *
+ * @param min_n Minimum number of sample points in the data.
+ * @param max_n Maximum number of sample points in the data.
+ * @param max_m Maximum polynomial degree in the data.
+ */
+void generateApproxMseHeatmapScript(int min_n, int max_n, int max_m);
 
 #endif // FILEIO_H
