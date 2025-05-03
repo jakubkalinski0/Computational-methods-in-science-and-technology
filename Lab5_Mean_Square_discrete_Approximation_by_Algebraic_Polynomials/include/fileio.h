@@ -98,30 +98,4 @@ void appendErrorToHeatmapFile(FILE* file, int n, int m, double max_error, double
  */
 void generateAllIndividualApproxScripts(int min_n, int max_n, int max_m);
 
-/**
- * @brief Generates Gnuplot script for plotting the Max Absolute Error heatmap.
- *
- * The plot shows Max Absolute Error as a function of 'm' (x-axis)
- * and 'n' (y-axis, reversed). The color scale (z-axis) is logarithmic
- * with a fixed minimum to better show variation in small errors.
- *
- * @param min_n Minimum number of sample points in the data.
- * @param max_n Maximum number of sample points in the data.
- * @param max_m Maximum polynomial degree in the data.
- */
-void generateApproxMaxErrorHeatmapScript(int min_n, int max_n, int max_m);
-
-/**
- * @brief Generates Gnuplot script for plotting the Mean Squared Error heatmap.
- *
- * The plot shows MSE as a function of 'm' (x-axis)
- * and 'n' (y-axis, reversed). The color scale (z-axis) is logarithmic
- * with a fixed minimum to better show variation in small errors.
- *
- * @param min_n Minimum number of sample points in the data.
- * @param max_n Maximum number of sample points in the data.
- * @param max_m Maximum polynomial degree in the data.
- */
-void generateApproxMseHeatmapScript(int min_n, int max_n, int max_m);
-
 #endif // FILEIO_H
