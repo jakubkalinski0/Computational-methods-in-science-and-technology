@@ -110,7 +110,7 @@ Let $h_i = x_{i+1} - x_i$ denote the length of the i-th subinterval.
     - 📁 **plots/** – Plot images (.png)
     - 🛠️ **Makefile**
     - 📘 **README.md** (This file)
-    - 📄 **Report_Lab4_Spline_Functions_Interpolation.pdf** – Detailed analysis (in Polish - *to be created*)
+    - 📄 **Report_Lab4_Spline_Functions_Interpolation.pdf** – Detailed analysis (in Polish)
 
 ## Requirements
 
