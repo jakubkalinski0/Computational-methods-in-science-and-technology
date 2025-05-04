@@ -5,7 +5,8 @@
  * Includes standard C libraries frequently used throughout the project.
  * Defines project-wide constants such as the maximum number of nodes/points
  * allowed and declares external global constants related to the function being
- * analyzed (defined in function.c), like the interval [a, b] and function parameters k, m.
+ * analyzed (defined in function.c), like the interval [a, b], function parameters k, m,
+ * and the fundamental angular frequency omega based on the interval.
  * This promotes consistency and avoids redundant declarations.
  */
 #ifndef COMMON_H
@@ -18,12 +19,21 @@
 
 // Project-Specific Constants
 /**
- * @brief Maximum number of interpolation nodes or approximation sample points allowed.
+ * @brief Maximum number of approximation sample points allowed.
  *
  * Used to statically declare array sizes in some parts of the code (e.g., main.c).
  * Adjust if larger datasets are needed, but consider memory implications.
  */
 #define MAX_NODES 500
+
+/**
+ * @brief Maximum harmonic order (m or K) allowed.
+ *
+ * Defines the upper limit for the parameter 'm' representing the highest
+ * harmonic included in the trigonometric sum.
+ */
+#define MAX_HARMONIC 50 // Max value for 'm'
+
 
 // External Global Constant Declarations (defined in function.c)
 // These define the mathematical context of the problem being solved.
@@ -32,5 +42,7 @@ extern const double k;  // Parameter 'k' used in the definition of function f(x)
 extern const double m;  // Parameter 'm' used in the definition of function f(x).
 extern const double a;  // Start point of the primary interval [a, b] for analysis.
 extern const double b;  // End point of the primary interval [a, b] for analysis.
+extern const double L;  // Length of the interval b-a.
+extern const double omega; // Fundamental angular frequency 2*PI/L.
 
 #endif // COMMON_H

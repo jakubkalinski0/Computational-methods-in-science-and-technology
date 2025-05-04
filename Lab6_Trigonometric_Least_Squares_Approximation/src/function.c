@@ -5,7 +5,7 @@
  *
  * This file defines the specific function being analyzed in the project,
  * f(x) = sin(k * x / PI) * exp(-m * x / PI),
- * its first derivative df(x), and the associated constants k, m, PI, a, b.
+ * its first derivative df(x), and the associated constants k, m, PI, a, b, L, omega.
  * These constants and functions provide the mathematical context for the
  * approximation tasks performed elsewhere in the project.
  */
@@ -18,6 +18,9 @@ const double m = 0.4;  /**< Parameter 'm' affecting the decay rate of the expone
 const double PI = 3.14159265358979323846; /**< Mathematical constant Pi, used for scaling within f(x). */
 const double a = -2.0 * PI * PI; /**< Start of the interval [a, b] (~ -19.74) for analysis and plotting. */
 const double b = PI * PI;        /**< End of the interval [a, b] (~ 9.87) for analysis and plotting. */
+const double L = b - a;          /**< Length of the interval [a, b]. */
+const double omega = (2.0 * PI) / (b - a); /**< Fundamental angular frequency for trigonometric basis on [a,b]. */
+
 
 /**
  * @brief Computes the value of the primary function f(x) for the analysis.
@@ -48,9 +51,7 @@ double f(double x) {
  * Calculates f'(x) using the product rule for differentiation on
  * f(x) = sin(k*x/PI) * exp(-m*x/PI).
  * The resulting formula is:
- * f'(x) = (d/dx [sin(kx/PI)]) * exp(-mx/PI) + sin(kx/PI) * (d/dx [exp(-mx/PI)])
- *       = (k/PI * cos(kx/PI)) * exp(-mx/PI) + sin(kx/PI) * (-m/PI * exp(-mx/PI))
- *       = (exp(-mx/PI) / PI) * [ k*cos(kx/PI) - m*sin(kx/PI) ]
+ * f'(x) = (exp(-mx/PI) / PI) * [ k*cos(kx/PI) - m*sin(kx/PI) ]
  * This function uses global constants k, m, and PI.
  *
  * @param x The input value (independent variable) at which to evaluate the derivative.
@@ -73,7 +74,4 @@ double df(double x) {
 
     // Return the sum, which is the total derivative f'(x)
     return term1 + term2;
-
-    // Alternative compact calculation (matches the simplified formula):
-    // return (exp_term / PI) * (k * cos_term - m * sin_term);
 }
