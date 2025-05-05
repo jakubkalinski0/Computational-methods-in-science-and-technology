@@ -1,80 +1,84 @@
 /**
  * @file fileio.h
- * @brief Header file for file input/output operations.
+ * @brief Header file for file input/output operations related to trigonometric approximation.
  *
- * Defines function prototypes for saving data (function points, nodes, errors)
- * to files and generating Gnuplot scripts for visualization.
+ * Defines function prototypes for saving data sets (function points, sample points,
+ * approximated sum points) and approximation errors to files. Includes prototypes
+ * for generating Gnuplot scripts to visualize approximation results and error trends,
+ * assuming a standard project directory structure ('data/', 'scripts/', 'plots/').
+ * Adjusted for parametrization by max harmonic 'm'.
  */
 #ifndef FILEIO_H
 #define FILEIO_H
-#include "common.h"
+
+#include "common.h" // Includes common definitions like MAX_NODES, a, b, omega
+#include <stdio.h> // Provides FILE* type definition
 
 /**
- * @brief Saves a set of (x, y) data points to a file.
+ * @brief Saves a set of (x, y) data points to a specified file within the 'data/' directory.
  *
- * Used for saving the original function curve or interpolated curves.
- * Files are saved in the 'data/' subdirectory.
+ * Versatile function for saving original function, evaluated trigonometric sum, etc.
+ * Automatically prepends "data/" to the filename.
  *
- * @param filename The name of the file to save (e.g., "original_function.dat").
+ * @param filename Base name of the file (e.g., "original_function_plot.dat", "trig_approx_m5_points50.dat").
+ *                 Final path will be "data/<filename>".
  * @param x Array of x-coordinates.
  * @param y Array of y-coordinates.
- * @param n The number of data points.
+ * @param n Number of data points to save.
  */
 void saveDataToFile(const char* filename, double x[], double y[], int n);
 
 /**
- * @brief Saves the interpolation nodes (x, y) to a file.
+ * @brief Saves the sample points (x_i, y_i) used for generating the least-squares trigonometric approximation.
  *
+ * Saves the discrete points used as input to the coefficient calculation function.
  * Files are saved in the 'data/' subdirectory.
  *
- * @param filename The name of the file to save (e.g., "uniform_nodes_n5.dat").
- * @param nodes Array of node x-coordinates.
- * @param values Array of node y-coordinates (function values at nodes).
- * @param n The number of nodes.
+ * @param filename Base name of the file (e.g., "sample_points_n50.dat").
+ *                 Final path will be "data/<filename>".
+ * @param points_x Array of sample point x-coordinates.
+ * @param points_y Array of sample point y-coordinates.
+ * @param n Number of sample points.
  */
-void saveNodesToFile(const char* filename, double nodes[], double values[], int n);
+void saveNodesToFile(const char* filename, double points_x[], double points_y[], int n);
 
 /**
- * @brief Generates a Gnuplot script to plot the comparison of maximum interpolation errors.
+ * @brief Appends approximation errors (N, m, Max Absolute, MSE) to a CSV file for heatmap plotting.
  *
- * Creates a script ('scripts/plot_errors.gp') that plots the maximum error
- * versus the number of nodes for different interpolation methods and node types.
- * The plot is saved as 'plots/interpolation_errors.png'.
+ * Designed to write a single row of data for a specific (n, m) combination
+ * to an already opened file stream. The file must be opened and the header
+ * written by the caller. Handles NAN values appropriately.
  *
- * @param maxNodes The maximum number of nodes used in the analysis.
- * @param hermite_uniform_errors Array of max errors for Hermite with uniform nodes.
- * @param hermite_chebyshev_errors Array of max errors for Hermite with Chebyshev nodes.
+ * @param file The already opened FILE pointer for the heatmap CSV file.
+ * @param n The number of sample points.
+ * @param m The maximum harmonic order used in the approximation.
+ * @param max_error The calculated maximum absolute error for this (n, m). Should be NAN if m >= n/2 or calculation failed.
+ * @param mse_error The calculated mean squared error for this (n, m). Should be NAN if m >= n/2 or calculation failed.
  */
-void generateErrorPlotScript(int maxNodes,
-                           double hermite_uniform_errors[],
-                           double hermite_chebyshev_errors[]);
+void appendErrorToHeatmapFile(FILE* file, int n, int m, double max_error, double mse_error);
+
 
 /**
- * @brief Saves Hermite/Uniform interpolation errors (max and MSE) to a CSV file.
- * @param maxNodes The maximum number of nodes used.
- * @param errors Array containing the maximum absolute errors for each node count.
- * @param mse Array containing the mean squared errors for each node count.
- */
-void saveHermiteUniformErrorsToFile(int maxNodes, double errors[], double mse[]);
-
-/**
- * @brief Saves Hermite/Chebyshev interpolation errors (max and MSE) to a CSV file.
- * @param maxNodes The maximum number of nodes used.
- * @param errors Array containing the maximum absolute errors for each node count.
- * @param mse Array containing the mean squared errors for each node count.
- */
-void saveHermiteChebyshevErrorsToFile(int maxNodes, double errors[], double mse[]);
-
-/**
- * @brief Generates a Gnuplot script to plot individual interpolation results for each node count.
+ * @brief Generates a single Gnuplot script ('scripts/plot_all_trig_approximations.gp')
+ *        to visualize individual trigonometric approximation results for valid (n, m) combinations (m < n/2).
  *
- * Creates a script ('scripts/plot_interpolation.gp') that generates separate plots
- * for each combination of method (Lagrange/Newton), node type (Uniform/Chebyshev),
- * and node count (n=1 to maxNodes). Each plot shows the original function,
- * the interpolated function, and the interpolation nodes.
- * Plots are saved in the 'plots/' subdirectory (e.g., 'plots/lagrange_uniform_with_nodes_n5.png').
+ * Creates a Gnuplot script that, when executed, generates a series of PNG plots,
+ * one for each valid (n, m) combination where the condition `m < n/2` holds.
+ * Each plot compares:
+ * 1. The original function `f(x)` (read from 'data/original_function_plot.dat').
+ * 2. The approximating trigonometric sum `T_m(x)` (read from 'data/trig_approx_m{m}_points{n}.dat').
+ *    The script includes a check to see if this file exists before trying to plot it.
+ * 3. The discrete sample points (x_i, y_i) used for the approximation (read from 'data/sample_points_n{n}.dat').
  *
- * @param maxNodes The maximum number of nodes for which plots should be generated.
+ * Output plots (.png) are saved in the 'plots/' directory with names like 'plots/trig_approx_m{m}_n{n}.png'.
+ * The script uses Gnuplot's `do for` loops and includes commands to ensure directories exist.
+ * It incorporates Gnuplot's `fileexists()` function (Gnuplot >= 5.2) or simulates it to handle cases where
+ * the approximation data file might not have been generated (due to m >= n/2 or other errors).
+ *
+ * @param min_n Minimum number of sample points included in the data.
+ * @param max_n Maximum number of sample points included in the data.
+ * @param max_m Maximum harmonic order included in the data (used as the upper loop limit for m).
  */
-void generateGnuplotScript(int maxNodes);
+void generateAllIndividualTrigApproxScripts(int min_n, int max_n, int max_m);
+
 #endif // FILEIO_H

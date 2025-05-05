@@ -1,233 +1,145 @@
 /**
  * @file fileio.c
- * @brief Implementation of file input/output operations.
- */
-#include "../include/fileio.h"
-#include <stdio.h>
-#include <stdlib.h> // Not strictly needed here, but often useful with file I/O
-
-/**
- * @brief Saves a set of (x, y) data points to a file in the 'data/' directory.
+ * @brief Implementation of file input/output operations for trigonometric approximation analysis (direct method).
  *
- * @param filename The base name of the file (e.g., "original_function.dat").
- * @param x Array of x-coordinates.
- * @param y Array of y-coordinates.
- * @param n The number of data points.
+ * Contains functions for saving data points, sample nodes, appending heatmap errors (N, m, Errors),
+ * and generating a Gnuplot script to visualize individual approximation results,
+ * parameterized by max harmonic 'm' and respecting the m < n/2 condition.
  */
+#include "../include/fileio.h" // Function prototypes and common includes (common.h)
+#include <stdio.h>             // Standard I/O functions (fopen, fprintf, fclose, FILE)
+#include <stdlib.h>            // Standard library
+#include <string.h>            // For string manipulation (like snprintf)
+#include <math.h>              // For NAN, isnan
+
+// saveDataToFile: Saves generic (x, y) data. Remains unchanged.
 void saveDataToFile(const char* filename, double x[], double y[], int n) {
     char filepath[256];
-    // Construct the full path including the subdirectory
-    sprintf(filepath, "data/%s", filename);
+    snprintf(filepath, sizeof(filepath), "data/%s", filename);
 
-    FILE *file = fopen(filepath, "w"); // Open file for writing
+    FILE *file = fopen(filepath, "w");
     if (file == NULL) {
-        // Print error message if file cannot be opened
-        printf("Error opening file: %s\n", filepath);
+        fprintf(stderr, "Error [saveDataToFile]: Could not open file: %s\n", filepath);
         return;
     }
 
-    // Write each (x, y) pair to the file, one pair per line
     for (int i = 0; i < n; i++) {
         fprintf(file, "%lf %lf\n", x[i], y[i]);
     }
 
-    fclose(file); // Close the file
+    fclose(file);
 }
 
-/**
- * @brief Saves the interpolation nodes (x, y) to a file in the 'data/' directory.
- *
- * @param filename The base name of the file (e.g., "uniform_nodes_n5.dat").
- * @param nodes Array of node x-coordinates.
- * @param values Array of node y-coordinates (function values at nodes).
- * @param n The number of nodes.
- */
-void saveNodesToFile(const char* filename, double nodes[], double values[], int n) {
+// saveNodesToFile: Saves sample points (x, y). Remains unchanged.
+void saveNodesToFile(const char* filename, double points_x[], double points_y[], int n) {
     char filepath[256];
-    // Construct the full path including the subdirectory
-    sprintf(filepath, "data/%s", filename);
+    snprintf(filepath, sizeof(filepath), "data/%s", filename);
 
-    FILE *file = fopen(filepath, "w"); // Open file for writing
+    FILE *file = fopen(filepath, "w");
     if (file == NULL) {
-        // Print error message if file cannot be opened
-        printf("Error opening file: %s\n", filepath);
+        fprintf(stderr, "Error [saveNodesToFile]: Could not open file: %s\n", filepath);
         return;
     }
 
-    // Write each node (x, y) pair to the file, one pair per line
     for (int i = 0; i < n; i++) {
-        fprintf(file, "%lf %lf\n", nodes[i], values[i]);
+        fprintf(file, "%lf %lf\n", points_x[i], points_y[i]);
     }
 
-    fclose(file); // Close the file
+    fclose(file);
 }
 
-/**
- * @brief Generates a Gnuplot script to plot the comparison of maximum interpolation errors.
- *
- * Creates 'scripts/plot_errors.gp' to visualize max error vs. number of nodes.
- * Output plot is 'plots/interpolation_errors.png'.
- *
- * @param maxNodes The maximum number of nodes analyzed.
- * @param hermite_uniform_errors Array of max errors (Hermite, Uniform).
- * @param hermite_chebyshev_errors Array of max errors (Hermite, Chebyshev).
- */
-void generateErrorPlotScript(int maxNodes,
-                           double hermite_uniform_errors[],
-                           double hermite_chebyshev_errors[]) {
-    char script_path[256];
-    // Define the path for the Gnuplot script
-    sprintf(script_path, "scripts/plot_errors.gp"); // Path relative to execution directory
 
-    FILE *gnuplot_script = fopen(script_path, "w"); // Open script file for writing
+/**
+ * @brief Appends approximation errors (N, m, Max Absolute, MSE) to a CSV file for heatmap plotting.
+ *
+ * Writes a single row for a specific (n, m) combination. Handles NAN values.
+ * Parameter 'm' is the max harmonic order.
+ */
+void appendErrorToHeatmapFile(FILE* file, int n, int m, double max_error, double mse_error) {
+    if (file == NULL) {
+        fprintf(stderr, "Error [appendErrorToHeatmapFile]: Invalid file pointer.\n");
+        return;
+    }
+    // Write n, m (max harmonic), max_error, and mse_error.
+    // Use %.10e for scientific notation. Write "NAN" string if value is NaN.
+    fprintf(file, "%d,%d,", n, m); // Use 'm' here
+    if (isnan(max_error)) {
+        fprintf(file, "NAN,");
+    } else {
+        fprintf(file, "%.10e,", max_error);
+    }
+    if (isnan(mse_error)) {
+        fprintf(file, "NAN\n");
+    } else {
+        fprintf(file, "%.10e\n", mse_error);
+    }
+}
+
+
+/**
+ * @brief Generates a single Gnuplot script ('scripts/plot_all_trig_approximations.gp')
+ *        to visualize individual trigonometric approximation results for valid (n, m) combinations (m < n/2).
+ *
+ * Creates the script using nested loops and includes a check for the existence of the
+ * approximation data file before attempting to plot it, ensuring robustness even if
+ * some calculations failed or were skipped due to the m < n/2 condition.
+ */
+void generateAllIndividualTrigApproxScripts(int min_n, int max_n, int max_m) {
+    char script_path[256];
+    // Use a consistent script name
+    snprintf(script_path, sizeof(script_path), "scripts/plot_all_trig_approximations.gp");
+
+    FILE *gnuplot_script = fopen(script_path, "w");
     if (gnuplot_script == NULL) {
-        printf("Cannot open file %s for writing\n", script_path);
+        fprintf(stderr,"Error [generateAllIndividualTrigApproxScripts]: Cannot open file %s for writing.\n", script_path);
         return;
     }
 
-    // --- Gnuplot Commands ---
-    // Set output format and appearance
+    // --- Common Gnuplot Settings ---
+    fprintf(gnuplot_script, "# Gnuplot script: Plot individual trigonometric approximation results (Direct Method, m < n/2)\n");
+    fprintf(gnuplot_script, "# Generated by: C program (main.c -> generateAllIndividualTrigApproxScripts)\n\n");
+    fprintf(gnuplot_script, "# Ensure required directories exist\n");
+    fprintf(gnuplot_script, "system 'mkdir -p plots data'\n\n");
+    fprintf(gnuplot_script, "# Terminal settings (PNG output)\n");
     fprintf(gnuplot_script, "set terminal pngcairo enhanced size 1200,800 font 'Arial,12'\n");
-    // Set output file name
-    fprintf(gnuplot_script, "set output 'plots/interpolation_errors.png'\n");
-    // Set plot title
-    fprintf(gnuplot_script, "set title 'Comparison of Interpolation Errors (Max Absolute Error)'\n"); // English title
-    // Set axis labels
-    fprintf(gnuplot_script, "set xlabel 'Number of Nodes (n)'\n"); // English label
-    fprintf(gnuplot_script, "set ylabel 'Maximum Absolute Error'\n"); // English label
-    // Enable grid
     fprintf(gnuplot_script, "set grid\n");
-    // Position the legend
-    fprintf(gnuplot_script, "set key top right\n");
-    // Use logarithmic scale for the y-axis (errors often span orders of magnitude)
-    fprintf(gnuplot_script, "set logscale y\n");
-    // Set y-axis range (adjust based on expected error values, in this case it's for n = 100 as the display of y scale without it is ugly)
-     fprintf(gnuplot_script, "set yrange [1e-10:1e70]\n");
+    fprintf(gnuplot_script, "set key top right outside spacing 1.1\n");
+    fprintf(gnuplot_script, "set xlabel 'x'\n");
+    fprintf(gnuplot_script, "set ylabel 'f(x), T_m(x)'\n");
+    fprintf(gnuplot_script, "set xrange [%.4f:%.4f]\n", a, b); // Use global interval bounds
+    // Adjust yrange if necessary based on function behavior
+    fprintf(gnuplot_script, "set yrange [-15:15]\n");
+    fprintf(gnuplot_script, "\n# Define maximum harmonic 'm' used in loops\n");
+    fprintf(gnuplot_script, "max_m = %d\n\n", max_m);
 
-    // Ensure the 'plots' directory exists (Gnuplot specific system command execution)
-    fprintf(gnuplot_script, "system 'mkdir -p plots'\n"); // Use system for portability
+    // --- Gnuplot Nested Loops ---
+    fprintf(gnuplot_script, "# Loop through number of points n\n");
+    fprintf(gnuplot_script, "do for [n=%d:%d] {\n", min_n, max_n);
+    fprintf(gnuplot_script, "    print sprintf(\"Gnuplot: Processing n = %%d\", n)\n"); // Progress indicator
+    fprintf(gnuplot_script, "    # Loop through max harmonic m\n");
+    fprintf(gnuplot_script, "    do for [m=0:max_m] {\n");
+    // --- Condition Check (m < n/2) inside Gnuplot ---
+    // Use 2.0 for floating point division, crucial for odd n
+    fprintf(gnuplot_script, "        if (m < n / 2.0) {\n");
+    fprintf(gnuplot_script, "            # Define filenames for this (n, m) combination\n");
+    fprintf(gnuplot_script, "            sample_file = sprintf(\"data/sample_points_n%%d.dat\", n)\n");
+    fprintf(gnuplot_script, "            approx_file = sprintf(\"data/trig_approx_m%%d_points%%d.dat\", m, n)\n");
+    fprintf(gnuplot_script, "            output_png = sprintf('plots/trig_approx_m%%d_n%%d.png', m, n)\n");
+    fprintf(gnuplot_script, "            plot_title = sprintf(\"Trigonometric Approx (n=%%d points, max harmonic m=%%d)\", n, m)\n\n");
+    fprintf(gnuplot_script, "            set output output_png\n");
+    fprintf(gnuplot_script, "            set title plot_title\n\n");
+    fprintf(gnuplot_script, "            plot 'data/original_function_plot.dat' \\\n");
+    fprintf(gnuplot_script, "                    with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original function f(x)', \\\n");
+    fprintf(gnuplot_script, "                 approx_file using 1:2 \\\n");
+    fprintf(gnuplot_script, "                    with lines lw 3 lc rgb 'red' title sprintf('Approximating T_{%%d}(x)', m), \\\n");
+    fprintf(gnuplot_script, "                 sample_file \\\n");
+    fprintf(gnuplot_script, "                    with points pt 7 ps 1.5 lc rgb 'black' title 'Sample points (x_i, y_i)'\n");
+    fprintf(gnuplot_script, "        } \n");
+    fprintf(gnuplot_script, "    } \n");
+    fprintf(gnuplot_script, "} \n\n");
+    fprintf(gnuplot_script, "print \"Gnuplot script finished.\"\n");
 
-    // Define the plot command: plot data directly embedded in the script ('-')
-    fprintf(gnuplot_script, "plot '-' using 1:2 with linespoints title 'Hermite (Uniform Nodes)', \\\n"); // English legend
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints title 'Hermite (Chebyshev Nodes)'\n"); // English legend
-
-    // Embed data for Hermite Uniform errors
-    for (int i = 0; i < maxNodes; i++) {
-        fprintf(gnuplot_script, "%d %e\n", i+1, hermite_uniform_errors[i]); // Node count (1 to maxNodes), error
-    }
-    fprintf(gnuplot_script, "e\n"); // End of data marker for Gnuplot
-
-    // Embed data for Hermite Chebyshev errors
-    for (int i = 0; i < maxNodes; i++) {
-        fprintf(gnuplot_script, "%d %e\n", i+1, hermite_chebyshev_errors[i]);
-    }
-    fprintf(gnuplot_script, "e\n");
-    // --- End of Gnuplot Commands ---
-
-    fclose(gnuplot_script); // Close the script file
-    printf("\nGenerated Gnuplot script: %s\n", script_path); // Confirmation message
-}
-
-
-/**
- * @brief Saves Hermite/Uniform interpolation errors (max and MSE) to 'data/hermite_uniform_errors.csv'.
- * @param maxNodes The maximum number of nodes used.
- * @param errors Array containing the maximum absolute errors for each node count (1 to maxNodes).
- * @param mse Array containing the mean squared errors for each node count (1 to maxNodes).
- */void saveHermiteUniformErrorsToFile(int maxNodes, double errors[], double mse[]) {
-    FILE *file = fopen("data/hermite_uniform_errors.csv", "w");
-    if (file != NULL) {
-        fprintf(file, "NumNodes,MaxAbsoluteError,MeanSquaredError\n"); // CSV Header (English)
-        for (int i = 0; i < maxNodes; i++) {
-            // Write node count (n), max error, and MSE
-            fprintf(file, "%d,%.10e,%.10e\n", i+1, errors[i], mse[i]);
-        }
-        fclose(file);
-    } else {
-         printf("Error opening file: data/hermite_uniform_errors.csv\n");
-    }
-}
-
-/**
- * @brief Saves Hermite/Chebyshev interpolation errors (max and MSE) to 'data/hermite_chebyshev_errors.csv'.
- * @param maxNodes The maximum number of nodes used.
- * @param errors Array containing the maximum absolute errors for each node count (1 to maxNodes).
- * @param mse Array containing the mean squared errors for each node count (1 to maxNodes).
- */
-void saveHermiteChebyshevErrorsToFile(int maxNodes, double errors[], double mse[]) {
-    FILE *file = fopen("data/hermite_chebyshev_errors.csv", "w");
-    if (file != NULL) {
-        fprintf(file, "NumNodes,MaxAbsoluteError,MeanSquaredError\n"); // CSV Header (English)
-        for (int i = 0; i < maxNodes; i++) {
-            // Write node count (n), max error, and MSE
-            fprintf(file, "%d,%.10e,%.10e\n", i+1, errors[i], mse[i]);
-        }
-        fclose(file);
-    } else {
-         printf("Error opening file: data/hermite_uniform_errors.csv\n");
-    }
-}
-
-/**
- * @brief Generates a Gnuplot script ('scripts/plot_interpolation.gp') to plot individual interpolation results.
- *
- * Creates plots for each combination of method, node type, and node count (n=1 to maxNodes).
- * Each plot compares the original function, the interpolated function, and shows the nodes.
- * Output plots are saved in the 'plots/' directory.
- *
- * @param maxNodes The maximum number of nodes for which plots should be generated.
- */
-void generateGnuplotScript(int maxNodes) {
-
-    char script_path[256];
-    // Define the path for the Gnuplot script
-    sprintf(script_path, "scripts/plot_interpolation.gp");
-
-    FILE *gnuplot_script = fopen(script_path, "w"); // Open script file for writing
-    if (gnuplot_script == NULL) {
-        printf("Cannot open file %s for writing\n", script_path);
-        return;
-    }
-
-    if (gnuplot_script != NULL) {
-        // --- Common Gnuplot Settings for all plots in this script ---
-        fprintf(gnuplot_script, "set terminal png size 1200,800\n"); // Output format
-        fprintf(gnuplot_script, "set grid\n");                       // Enable grid
-        fprintf(gnuplot_script, "set key outside\n");                // Place legend outside plot area
-        fprintf(gnuplot_script, "set xlabel 'x'\n");                 // X-axis label
-        fprintf(gnuplot_script, "set ylabel 'f(x)'\n");              // Y-axis label
-        // Set axis ranges based on the function's behavior in the interval [a, b]
-        fprintf(gnuplot_script, "set xrange [%.2f:%.2f]\n", a, b);    // Use interval bounds
-        // Adjust yrange manually if needed for better visualization
-        fprintf(gnuplot_script, "set yrange [-15:15]\n"); // Example range, adjust as necessary
-        // Ensure output directories exist (Gnuplot specific system command)
-        fprintf(gnuplot_script, "system 'mkdir -p plots data'\n"); // Use system for portability
-
-        // --- Generate individual plots for each node count 'n' ---
-        fprintf(gnuplot_script, "# Plots of interpolated functions with nodes\n");
-
-        // Loop through number of nodes from 1 to maxNodes
-        for (int n = 1; n <= maxNodes; n++) {
-
-            // --- Plot 1: Hermite Interpolation with Uniform Nodes ---
-            fprintf(gnuplot_script, "set output 'plots/hermite_uniform_with_nodes_n%d.png'\n", n); // Output filename
-            // Set plot title (using C string formatting)
-            fprintf(gnuplot_script, "set title \"Hermite Interpolation (n=%d, Uniform Nodes)\"\n", n); // English title
-            // Plot command: original function, interpolated function, nodes
-            fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original Function',\\\n"); // English legend
-            fprintf(gnuplot_script, "     'data/hermite_uniform_n%d.dat' with lines lw 3 lc rgb 'red' title 'Hermite Interpolation',\\\n", n); // English legend
-            fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
-
-            // --- Plot 2: Hermite Interpolation with Chebyshev Nodes ---
-            fprintf(gnuplot_script, "set output 'plots/hermite_chebyshev_with_nodes_n%d.png'\n", n); // Output filename
-            fprintf(gnuplot_script, "set title \"Hermite Interpolation (n=%d, Chebyshev Nodes)\"\n", n); // English title
-            fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original Function',\\\n"); // English legend
-            fprintf(gnuplot_script, "     'data/hermite_chebyshev_n%d.dat' with lines lw 3 lc rgb 'red' title 'Hermite Interpolation',\\\n", n); // English legend
-            fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 7 ps 1.5 lc rgb 'black' title 'Interpolation Nodes'\n", n); // English legend
-        }
-        // --- End of loop ---
-
-        fclose(gnuplot_script); // Close the script file
-        printf("\nGenerated Gnuplot script: %s\n", script_path); // Confirmation message
-    }
+    fclose(gnuplot_script);
+    printf("Generated Gnuplot script for individual trigonometric approximations: %s\n", script_path);
+    printf("Note: Gnuplot script uses fileexists() (Gnuplot >= 5.2) to check for approximation data files.\n");
 }

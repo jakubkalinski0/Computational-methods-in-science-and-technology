@@ -1,152 +1,116 @@
-# Lab 3: Hermite Interpolation Analysis
+# Lab 6: Least Squares Trigonometric Approximation Analysis (Direct Method)
 
 ## Overview
 
-This project implements and analyzes **Hermite polynomial interpolation**. The goal is to approximate a given function, $f(x) = \sin(k \cdot x / \pi) \cdot \exp(-m \cdot x / \pi)$, over the interval $[a, b]$. Unlike Lagrange or Newton interpolation which only match function values at nodes, Hermite interpolation matches both the **function values ($f(x)$)** and the **first derivative values ($f'(x)$)** at each distinct node.
+This project implements and analyzes **least-squares trigonometric approximation** using **direct summation formulas**. The goal is to approximate a given function, $f(x) = \sin(k \cdot x / \pi) \cdot \exp(-m \cdot x / \pi)$, over the interval $[a, b]$. The method finds the trigonometric sum $T_m(x)$ up to a specified maximum harmonic order $m$ that approximates the function based on its values at $n$ discrete sample points $(x_i, y_i)$.
+
+The trigonometric sum has the form:
+$$T_m(x) = \frac{a_0}{2} + \sum_{k=1}^{m} [a_k \cos(k \omega x) + b_k \sin(k \omega x)]$$
+where $m$ is the maximum harmonic order, and $\omega = 2\pi / (b-a)$ is the fundamental angular frequency adapted to the interval $[a, b]$.
+
+The coefficients $a_k$ and $b_k$ are calculated using direct summation formulas, which are discrete approximations of the standard Fourier integral formulas:
+$$ a_k \approx \frac{2}{n} \sum_{i=0}^{n-1} y_i \cos(k \omega x_i) \quad (k=0, \dots, m) $$
+$$ b_k \approx \frac{2}{n} \sum_{i=0}^{n-1} y_i \sin(k \omega x_i) \quad (k=1, \dots, m) $$
+This approach relies on the properties associated with the Discrete Fourier Transform (DFT) and typically requires the sample points $x_i$ to be uniformly distributed for the results to accurately represent the least-squares best fit. Crucially, it requires the condition $m < n/2$ (maximum harmonic less than half the number of points) to avoid aliasing and ensure stability, based on the Nyquist-Shannon sampling theorem.
 
 The analysis investigates the impact of:
-1.  **Node Distribution:** Comparing results using equally spaced (**uniform**) nodes versus **Chebyshev** nodes (roots of Chebyshev polynomials mapped to the interval).
-2.  **Number of Distinct Nodes ($n$):** Observing how the accuracy of the interpolation changes as the number of distinct nodes ($n$) increases. Note that for $n$ distinct nodes, the resulting Hermite polynomial has a degree of $2n - 1$.
+1.  **Number of Sample Points ($n$):** How accuracy changes as $n$ increases (using uniformly spaced points).
+2.  **Maximum Harmonic Order ($m$):** How accuracy varies with the complexity of the trigonometric sum (controlled by $m$, requiring $m < n/2$).
 
-The project calculates the interpolated values using a generalized divided difference approach, measures the approximation accuracy using maximum absolute error and mean squared error (MSE), visualizes the results, and aims to identify phenomena like the Runge effect (oscillations near the interval ends, especially with uniform nodes and high degrees).
+Accuracy is measured using maximum absolute error and mean squared error (MSE). Data is generated for valid $(n, m)$ combinations, and results are visualized using individual comparison plots (Gnuplot) and error heatmaps (Python).
 
-## Problem Description (Original Polish Task)
+## Problem Description (Adapted Task)
 
-Dla jednej z poniższych funkcji (podanej w zadaniu indywidualnym) wyznacz dla zagadnienia Hermite'a wielomian interpolujący w postaci Hermite'a. (wystarczy zaimplementować algorytm, pozwalający na wyznaczenie wielomianu interpolacyjnego z wykorzystaniem pierwszych pochodnych).
+The goal is to approximate the function $f(x) = \sin(kx/\pi) \exp(-mx/\pi)$ (with $k=4, m=0.4$) on the interval $[-2\pi^2, \pi^2]$ using **least-squares trigonometric approximation via direct summation formulas**. The analysis focuses on the accuracy depending on the number of discretization points ($n$) and the maximum harmonic order ($m$).
 
-Interpolację przeprowadź dla różnej liczby węzłów (np. $n = 3, 4, 5, 7, 10, 15, 20$). Dla każdego przypadku interpolacji porównaj wyniki otrzymane dla różnego rozmieszczenia węzłów: równoodległe oraz Czebyszewa (zera wielomianu Czebyszewa).
-
-Oceń dokładność, z jaką wielomian przybliża zadaną funkcję.
-
-Poszukaj wielomianu, który najlepiej przybliża zadaną funkcję.
-
-Wyszukaj stopień wielomianu, dla którego można zauważyć efekt Runge’go (dla równomiernego rozmieszczenia węzłów). Porównaj z wyznaczonym wielomianem dla węzłów Czebyszewa.
-
-Funkcja którą ja otrzymałem to:
-$f(x) = \sin(k \cdot x / \pi) \cdot \exp(-m \cdot x / \pi)$
-gdzie $k=4$, $m=0.4$, $x \in [-2\pi^2, \pi^2]$
-
-Uwaga: Zalecane jest rysowanie wykresów funkcji, wielomianów interpolujących, ... , czyli graficzne ilustrowanie przeprowadzonych eksperymentów numerycznych. W sprawozdaniu należy umieścić wykresy jedynie dla wybranych przypadków!
-
-*(**Translation:** For the assigned function $f(x) = \sin(k \cdot x / \pi) \cdot \exp(-m \cdot x / \pi)$ where $k=4$, $m=0.4$, $x \in [-2\pi^2, \pi^2]$, determine the interpolating polynomial for the Hermite problem in Hermite form (implementing an algorithm that allows determining the interpolating polynomial using first derivatives is sufficient). Perform interpolation for various numbers of nodes (e.g., $n=3, 4, 5, 7, 10, 15, 20$). For each case, compare results obtained with different node distributions: uniform and Chebyshev (zeros of the Chebyshev polynomial). Evaluate the accuracy of the polynomial approximation. Find the polynomial that best approximates the function. Identify the polynomial degree where the Runge phenomenon becomes noticeable (for uniform nodes) and compare it with the polynomial obtained using Chebyshev nodes. Note: It is recommended to draw graphs of the function, interpolating polynomials, etc., i.e., graphically illustrate the numerical experiments performed. Include graphs only for selected cases in the report!)*
+The process involves:
+1.  Implementing C modules for the function, node generation (uniform), error calculation, I/O.
+2.  Implementing trigonometric coefficient calculation in C using the **direct summation formulas**.
+3.  Discretizing the function using $n$ uniformly spaced points $(x_i, y_i)$.
+4.  For each $n$ and various valid harmonic orders $m$ (where $0 \le m < n/2$), calculating the coefficients $a_k, b_k$ using the summation formulas.
+5.  Calculating approximation errors (Max Absolute, MSE) on a dense grid.
+6.  Visualizing results using Python (heatmaps) and Gnuplot (individual plots).
 
 ## Key Features
 
-*   Implements **Hermite interpolation** using generalized divided differences, matching both function values ($f(x)$) and first derivative values ($f'(x)$) at nodes.
-*   Includes the function $f(x) = \sin(k \cdot x / \pi) \cdot \exp(-m \cdot x / \pi)$ and its first derivative `df(x)` (representing $f'(x)$).
-*   Generates interpolation nodes using **uniform spacing** and **Chebyshev distribution**.
-*   Interpolates the function over the interval $[-2\pi^2, \pi^2]$ ($a$ to $b$).
-*   Iterates through a user-defined range of *distinct* node counts ($n$).
-*   Calculates **Maximum Absolute Error** and **Mean Squared Error (MSE)** between the true function $f(x)$ and the Hermite interpolating polynomial.
-*   Saves detailed results to data files:
+*   Implements **trigonometric approximation using direct summation formulas**, closely related to DFT.
+*   Uses the basis $\{1, \cos(k \omega x), \sin(k \omega x)\}$ up to $k=m$, where $\omega=2\pi/(b-a)$.
+*   Includes the target function $f(x) = \sin(k \cdot x / \pi) \cdot \exp(-m \cdot x / \pi)$.
+*   Generates **uniformly spaced sample points** within the interval $[a, b]$.
+*   Iterates through user-defined ranges of **sample points ($n$)** and **max harmonic order ($m$)**.
+*   Enforces the condition **$m < n/2$** for calculations based on sampling theory.
+*   Calculates **Maximum Absolute Error** and **Mean Squared Error (MSE)**.
+*   Saves detailed results:
     *   Original function points (`.dat`).
-    *   Interpolation nodes $(x, y)$ for each $n$ and type (`.dat`).
-    *   Interpolated function points for each configuration (`.dat`).
-    *   Error summaries (Max Error, MSE vs. $n$) for each configuration (`.csv`).
-*   Automatically generates **Gnuplot scripts** (`.gp`) for visualizing:
-    *   Individual plots comparing the original function $f(x)$, the Hermite interpolated function, and the nodes for each $n$ and node type (Uniform/Chebyshev).
-    *   A summary plot comparing the maximum absolute error trend versus the number of nodes ($n$) for Hermite interpolation with Uniform vs. Chebyshev nodes.
-*   Provides a **Makefile** for easy compilation, execution, data/script generation, plotting, and cleanup.
+    *   Sample points $(x_i, y_i)$ for each $n$ (`.dat`).
+    *   Approximating trigonometric sum $T_m(x)$ points for each valid $(n, m)$ (`.dat`).
+    *   Error summary (`N, m, MaxError, MSE`) for heatmaps (`.csv`).
+*   Generates a **Gnuplot script** (`.gp`) for **individual plots** comparing $f(x)$, $T_m(x)$, and sample points for valid $(n, m)$ pairs.
+*   Includes a **Python script** (`plot_heatmaps.py`) using pandas, matplotlib, seaborn to generate **heatmap plots** visualizing error trends (Max Error/MSE vs. $n$ and $m$).
+*   Provides a **Makefile** for easy compilation, execution, data generation, plotting, and cleanup.
 
 ## 📁 Project Structure
-- 📁 **Lab3_Hermite_Interpolation/** – Main
+- 📁 **Lab6_Trigonometric_Approximation_Direct/** – Main
     - 📁 **include/** – Header files (.h)
-        - 📄 `common.h`
-        - 📄 `error.h`
-        - 📄 `fileio.h`
-        - 📄 `function.h`
-        - 📄 `interpolation.h`
-        - 📄 `nodes.h`
-    - 📁 **src/** – Source code files (.c)
-        - 📄 `error.c`
-        - 📄 `fileio.c`
-        - 📄 `function.c`
-        - 📄 `interpolation.c`
-        - 📄 `main.c`
-        - 📄 `nodes.c`
-    - 📁 **bin/** – Compiled executable (created by `make`)
-    - 📁 **obj/** – Object files (.o) (created by `make`)
-    - 📁 **data/** – Output data files (.dat, .csv) (created by `make run` / `make plots`)
-    - 📁 **scripts/** – Gnuplot scripts (.gp) generated by `make run` / `make plots`
-    - 📁 **plots/** – Plot images (.png) generated by `make plots`
-    - 🛠️ **Makefile** – Build script
-    - 📘 **README.md** – Project description (this file)
-    - 📄 **Report_Lab3_Hermite_Interpolation.pdf** – Detailed analysis (in Polish)
-
+    - 📁 **src/** – Source code files (.c), Python script (.py)
+    - 📁 **bin/** – Compiled executable (`trig_approx_direct_app`)
+    - 📁 **obj/** – Object files (.o)
+    - 📁 **data/** – Output data files (.dat, `trig_approx_direct_heatmap_errors.csv`)
+    - 📁 **scripts/** – Gnuplot scripts (`plot_all_trig_approximations.gp`)
+    - 📁 **plots/** – Plot images (.png, .svg, .pdf)
+    - 🛠️ **Makefile**
+    - 📘 **README.md** (This file)
+    - *(Optional: Report file)*
 
 ## Requirements
 
-*   **C Compiler:** A C compiler supporting C11 or later (e.g., GCC, Clang).
-*   **Make:** The `make` build automation tool.
-*   **Gnuplot:** The Gnuplot utility for generating plots from the scripts.
+*   **C Compiler:** GCC, Clang, etc. (C11 support).
+*   **Make:** Build tool.
+*   **Gnuplot:** For individual plots (version >= 5.2 recommended for `fileexists()`).
+*   **Python 3:** For heatmaps.
+    *   **Libraries:** pandas, matplotlib, seaborn, numpy (`pip install pandas matplotlib seaborn numpy`). Use a virtual environment if preferred.
 
 ## Building and Running
 
-The project uses a Makefile for easy management. Open your terminal in the project's root directory and use the following commands:
+Use the Makefile in the project root directory:
 
-1.  **Compile the program:**
-    ```bash
-    make all
-    # or simply:
-    make
-    ```
-    This compiles the source code and creates the executable `bin/interpolation`.
-
-2.  **Compile and Run (Generate Data & Scripts):**
-    ```bash
-    make run
-    ```
-    This compiles (if needed) and runs the C program. You will be prompted to enter the maximum number of *distinct* nodes ($n$). This generates data files (`.dat`, `.csv`) in `data/` and Gnuplot scripts (`.gp`) in `scripts/`.
-
-3.  **Compile, Run, and Generate Plots:**
-    ```bash
-    make plots
-    ```
-    This performs the `make run` steps and then automatically executes the Gnuplot scripts to generate PNG plot images in the `plots/` directory.
-
-4.  **Display Help:**
-    ```bash
-    make help
-    ```
-    Shows a summary of available Makefile commands.
+1.  **Compile:** `make all` or `make` (creates `bin/trig_approx_direct_app`)
+2.  **Run C code (Generate Data & Gnuplot Script):** `make run`
+    *   Prompts for max $n$ and max $m$.
+    *   Generates `data/trig_approx_direct_heatmap_errors.csv`, `data/*.dat`, `scripts/*.gp`. Calculations are only performed for $m < n/2$.
+3.  **Generate Heatmap Plots (Python):** `make py_plots`
+    *   Runs `src/plot_heatmaps.py` (ensure it reads the correct CSV and uses 'm' labels). Requires data from `make run`.
+    *   Generates plots in `plots/`.
+4.  **Generate Individual Plots (Gnuplot):** `make generate_individual_plots`
+    *   Runs Gnuplot script from `scripts/`. Requires script/data from `make run`.
+    *   Generates PNG plots in `plots/` only for $m < n/2$.
+5.  **All Steps (Compile, Run C, Plot Python & Gnuplot):** `make plots`
+6.  **Help:** `make help` (shows available commands)
 
 ## Output Files
 
-After running `make plots`, you will find the following generated files:
-
-*   **`data/` Directory:**
-    *   `original_function.dat`: Points representing the true function $f(x)$.
-    *   `uniform_nodes_n*.dat`: Coordinates of uniform interpolation nodes for $n$ distinct nodes.
-    *   `chebyshev_nodes_n*.dat`: Coordinates of Chebyshev interpolation nodes for $n$ distinct nodes.
-    *   `hermite_uniform_n*.dat`: Interpolated points using Hermite/Uniform for $n$ distinct nodes.
-    *   `hermite_chebyshev_n*.dat`: Interpolated points using Hermite/Chebyshev for $n$ distinct nodes.
-    *   `hermite_uniform_errors.csv`: Max error and MSE vs. $n$ for Hermite/Uniform.
-    *   `hermite_chebyshev_errors.csv`: Max error and MSE vs. $n$ for Hermite/Chebyshev.
-*   **`scripts/` Directory:**
-    *   `plot_interpolation.gp`: Gnuplot script to generate individual Hermite interpolation plots for each $n$.
-    *   `plot_errors.gp`: Gnuplot script to generate the summary error comparison plot (Hermite Uniform vs. Chebyshev).
-*   **`plots/` Directory:**
-    *   `hermite_uniform_with_nodes_n*.png`, `hermite_chebyshev_with_nodes_n*.png`: Individual plots showing original vs. Hermite interpolated function and nodes for each configuration and $n$.
-    *   `interpolation_errors.png`: Summary plot showing maximum absolute error vs. $n$ for Hermite/Uniform and Hermite/Chebyshev.
+*   **`data/`:**
+    *   `trig_approx_direct_heatmap_errors.csv`: Heatmap data (N, m, Errors). Includes NAN for $m \ge n/2$.
+    *   `original_function_plot.dat`: True function points.
+    *   `sample_points_n*.dat`: Sample points used.
+    *   `trig_approx_m*_points*.dat`: Approximating sum points (only generated for $m < n/2$).
+*   **`scripts/`:**
+    *   `plot_all_trig_approximations.gp`: Gnuplot script for individual plots (plots only valid $m < n/2$ cases).
+*   **`plots/`:**
+    *   `trig_direct_*.svg/pdf/png`, `annotated_trig_direct_*.svg/pdf/png`: Heatmaps from Python.
+    *   `trig_approx_m*_n*.png`: Individual plots from Gnuplot (only for $m < n/2$).
 
 ## Analysis and Interpretation
 
-A detailed analysis of the results, comparing the node distributions, accuracy, observing the behavior as $n$ increases (including potential Runge effect for uniform nodes), and discussing the effectiveness of Hermite interpolation for this function, can be found in the accompanying report file:
+Analyze the generated heatmaps and individual plots to understand:
+*   How approximation error (Max Abs, MSE) changes with increasing $n$ (number of samples) for a fixed $m$ (max harmonic).
+*   How error changes with increasing $m$ for a fixed $n$, noting the hard cutoff at $m = \lfloor (n-1)/2 \rfloor$ due to the $m < n/2$ condition.
+*   The effectiveness of the direct summation method for this function and uniform sampling.
+*   Compare error behavior to results obtained using the Normal Equations method (if available) - expect similar trends but potentially different behavior near the stability limit.
 
-**`Report_Lab3_Hermite_Interpolation.pdf`**
-
-Please note that the analysis within that document is written in **Polish**.
+*(Consider writing a separate report document for detailed analysis)*
 
 ## Cleanup
 
-*   **Remove generated files (but keep directories):**
-    ```bash
-    make clean
-    ```
-    This removes object files (`*.o`), the executable, data files (`*.dat`, `*.csv`), Gnuplot scripts (`*.gp`), and plot images (`*.png`).
-
-*   **Remove generated files AND directories:**
-    ```bash
-    make distclean
-    ```
-    This does everything `make clean` does and also removes the `obj/`, `bin/`, `data/`, `scripts/`, and `plots/` directories.
+*   **Remove generated files:** `make clean`
+*   **Remove generated files and directories:** `make distclean`
