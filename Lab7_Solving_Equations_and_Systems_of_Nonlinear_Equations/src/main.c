@@ -1,189 +1,156 @@
 /**
  * @file main.c
- * @brief Main program driver for trigonometric approximation using direct summation formulas.
- *        Analyzes error across ranges of sample points (n) and maximum harmonic order (m).
- *        Generates data (CSV for heatmaps, DAT for individual plots) and a Gnuplot script.
- *        Heatmap visualization is handled by an external Python script.
- *        Enforces the condition m < n/2 for the direct method.
+ * @brief Main program driver for finding roots of f(x) = x^n + x^m using Newton's and Secant methods.
+ *        Analyzes convergence and iteration counts across ranges of starting points
+ *        and precision values (rho).
+ *        Generates data (CSV for tables/plots) and basic Gnuplot scripts.
+ *        Detailed visualization (heatmaps) is handled by an external Python script.
+ *        Uses simplified loops with epsilon comparison for endpoint and float equality.
  */
-#include "../include/common.h"        // Common definitions (constants, MAX_HARMONIC)
-#include "../include/function.h"      // Function f(x)
-#include "../include/nodes.h"         // Node generation functions (uniformNodes used)
-#include "../include/approximation.h" // Direct trigonometric approximation functions
-#include "../include/error.h"         // Error calculation (calculateError)
-#include "../include/fileio.h"        // File I/O (saving data, generating Gnuplot scripts)
-#include <stdio.h>                   // Standard Input/Output
-#include <stdlib.h>                  // Standard Library
-#include <math.h>                    // For isnan(), NAN
-#include <string.h>                  // For snprintf
+#include "../include/common.h"     // Common definitions (constants a, b, N_param, M_param, MAX_ITERATIONS)
+#include "../include/function.h"   // Function f(x), df(x)
+#include "../include/root_finding.h" // Newton's and Secant methods
+#include "../include/fileio.h"     // File I/O (saving results, generating Gnuplot scripts)
+#include <stdio.h>                // Standard Input/Output
+#include <stdlib.h>               // Standard Library
+#include <math.h>                 // For fabs, pow, fmax
+#include <string.h>               // For snprintf
+#include <float.h>                // For DBL_EPSILON
 
-// --- Configuration Constants ---
-// Minimum n required for m=1 (since m < n/2 -> 1 < n/2 -> n > 2)
-#define MIN_HEATMAP_N 3
-#define NUM_PLOT_POINTS 1000 // Number of points for plotting smooth curves
+#define NUM_PLOT_POINTS 500       // Points for plotting f(x)
+#define START_POINT_STEP 0.1      // Step for iterating starting points
+#define NUM_PRECISIONS 7          // Number of precision values to test
+
+// Define the precision values (rho)
+const double PRECISION_VALUES[NUM_PRECISIONS] = {
+    1e-2, 1e-3, 1e-4, 1e-5, 1e-7, 1e-10, 1e-15
+};
 
 /**
- * @brief Main entry point for the trigonometric approximation (direct formulas) data generation program.
+ * @brief Main entry point for the root-finding analysis program.
  */
 int main() {
-    // --- Variable Declarations ---
-    int max_n; // Maximum number of sample points (n) to analyze.
-    int max_m; // Maximum harmonic order (m) to analyze.
+    printf("--- Root Finding Analysis for f(x) = x^%.0f + x^%.0f on [%.2f, %.2f] ---\n", N_param, M_param, a, b);
+    printf("Methods: Newton, Secant\n");
+    printf("Stopping Criteria: |x_next - x_curr| < rho AND |f(x_next)| < rho\n");
+    printf("Generates CSV data and triggers Python script for plots.\n\n");
 
-    // --- Get User Input for Range ---
-    printf("--- Least Squares Trigonometric Approximation (Direct Formulas) ---\n");
-    printf("Analyzes error across a range of sample points (n) and max harmonic order (m).\n");
-    printf("Uses direct summation formulas (requires m < n/2 for validity).\n");
-    printf("Generates data files (CSV for heatmaps, DAT for individual plots) and a Gnuplot script.\n");
-    printf("Heatmap plots are generated separately by a Python script.\n\n");
+    // --- Generate Plot of f(x) ---
+    printf("Generating Gnuplot script to plot f(x)...\n");
+    generateFunctionPlotScript("plot_function.gp", "function_plot.png", NUM_PLOT_POINTS);
+    printf("Run 'gnuplot scripts/plot_function.gp' to generate the plot.\n\n");
 
-    printf("Enter the maximum number of sample points to analyze (n >= %d, n <= %d): ", MIN_HEATMAP_N, MAX_NODES);
-    if (scanf("%d", &max_n) != 1 || max_n < MIN_HEATMAP_N || max_n > MAX_NODES) {
-        fprintf(stderr, "Error: Invalid input for maximum sample points (n). Must be between %d and %d.\n", MIN_HEATMAP_N, MAX_NODES);
-        return 1; // Exit on invalid input
+    // --- Open CSV File for Results ---
+    const char *results_filename = "root_finding_results.csv";
+    FILE *csv_file = openResultCsvFile(results_filename);
+    if (csv_file == NULL) {
+        return 1; // Exit if file cannot be opened
     }
+    printf("Opened %s for writing results.\n", results_filename);
 
-    printf("Enter the maximum harmonic order (m >= 0, m <= %d): ", MAX_HARMONIC);
-     if (scanf("%d", &max_m) != 1 || max_m < 0 || max_m > MAX_HARMONIC) {
-        fprintf(stderr, "Error: Invalid input for maximum harmonic order (m). Must be between 0 and %d.\n", MAX_HARMONIC);
-        return 1; // Exit on invalid input
-    }
+    printf("\nStarting root-finding analysis...\n");
+    printf("===================================================================\n");
 
-    // --- Generate Dense Grid for Plotting Original Function ---
-    double x_plot[NUM_PLOT_POINTS];        // x-coordinates for smooth plotting
-    double y_true_plot[NUM_PLOT_POINTS];   // f(x) values at x_plot points
-    double plot_step = (L) / (NUM_PLOT_POINTS - 1.0); // Use interval length L
-    printf("\nGenerating data for original function f(x) on [%.2f, %.2f] for error comparison...\n", a, b);
-    for (int i = 0; i < NUM_PLOT_POINTS; i++) {
-        x_plot[i] = a + i * plot_step;
-        y_true_plot[i] = f(x_plot[i]);
-    }
-    if (NUM_PLOT_POINTS > 1) x_plot[NUM_PLOT_POINTS - 1] = b; // Ensure endpoint accuracy
-    saveDataToFile("original_function_plot.dat", x_plot, y_true_plot, NUM_PLOT_POINTS);
-    printf("Saved original function plotting data to data/original_function_plot.dat\n");
+    // Epsilon for floating point comparisons near loop boundaries
+    // Use a small fraction of the step size to decide if we are close enough to b
+    double epsilon = START_POINT_STEP * 0.01; // Small tolerance relative to step
 
+    // --- Iterate Through Precision Values ---
+    for (int p_idx = 0; p_idx < NUM_PRECISIONS; ++p_idx) {
+        double current_precision = PRECISION_VALUES[p_idx];
+        printf("Processing Precision rho = %.1e\n", current_precision);
 
-    // --- Open CSV File for Heatmap Data ---
-    const char *heatmap_filename = "data/trig_approx_direct_heatmap_errors.csv"; // Updated filename
-    FILE *heatmap_file = fopen(heatmap_filename, "w");
-    if (heatmap_file == NULL) {
-        fprintf(stderr, "Error: Could not open file '%s' for writing heatmap data.\n", heatmap_filename);
-        return 1; // Exit on file opening failure
-    }
-    fprintf(heatmap_file, "N,m,MaxAbsoluteError,MeanSquaredError\n"); // Updated header with 'm'
-    printf("\nStarting trigonometric approximation analysis for n from %d to %d and m from 0 to %d (only considering m < n/2)...\n", MIN_HEATMAP_N, max_n, max_m);
-    printf("=========================================================================================================\n");
+        // --- Newton's Method ---
+        printf("  Running Newton's Method...\n");
+        // Iterate starting points x0 from a up to b (inclusive)
+        for (double x0 = a; x0 <= b + epsilon; x0 += START_POINT_STEP) {
+            double current_x0 = x0;
+            // Clamp to b if we slightly overshoot due to float addition
+            if (x0 > b && x0 < b + epsilon) {
+                current_x0 = b;
+            }
+            // Ensure we don't go significantly past b
+            if (current_x0 > b + epsilon) break;
 
+            RootResult newton_res = newtonMethod(current_x0, current_precision, MAX_ITERATIONS);
+            appendNewtonResultToCsv(csv_file, current_x0, current_precision, newton_res);
 
-    // --- Main Loops: Iterate Through Number of Points (n) and Max Harmonic (m) ---
-    for (int n_val = MIN_HEATMAP_N; n_val <= max_n; n_val++) {
-        printf("Processing n = %d points...\n", n_val);
-
-        // Generate sample points for current n (using uniform nodes)
-        double sample_x[MAX_NODES]; // Use MAX_NODES for buffer safety
-        double sample_y[MAX_NODES];
-        uniformNodes(sample_x, n_val); // Generate n uniform nodes in [a, b]
-        for (int i = 0; i < n_val; i++) {
-            sample_y[i] = f(sample_x[i]); // Calculate function values at nodes
+            // Break *after* processing b
+            if (fabs(current_x0 - b) < DBL_EPSILON) break;
         }
 
-        // Save sample points for this n (filename unchanged)
-        char sample_filename[100];
-        snprintf(sample_filename, sizeof(sample_filename), "sample_points_n%d.dat", n_val);
-        saveNodesToFile(sample_filename, sample_x, sample_y, n_val);
-
-        // Inner loop over max harmonic order m
-        for (int m_deg = 0; m_deg <= max_m; m_deg++) {
-
-            // --- Apply the crucial condition m < n/2 for the direct method ---
-            // Use floating point division for correctness with odd n
-            if (m_deg >= (double)n_val / 2.0) {
-                // Condition not met, skip calculation for this (n, m) pair
-                // Record NAN in the CSV file to indicate this combination was skipped/invalid
-                appendErrorToHeatmapFile(heatmap_file, n_val, m_deg, NAN, NAN);
-                continue; // Move to the next value of m
+        // --- Secant Method - Case 1: x1 = a (fixed), x0 iterates ---
+        printf("  Running Secant Method (x1 = a = %.2f fixed)...\n", a);
+        double x1_fixed_a = a;
+        // Iterate x0 from a + step up to b (inclusive)
+        for (double x0 = a + START_POINT_STEP; x0 <= b + epsilon; x0 += START_POINT_STEP) {
+            double current_x0 = x0;
+            if (x0 > b && x0 < b + epsilon) {
+                current_x0 = b;
             }
+            if (current_x0 > b + epsilon) break;
 
-            // --- Perform Direct Trigonometric Coefficient Calculation ---
-            int num_coeffs_required = 1 + 2 * m_deg;
-            // Define buffer size based on the absolute maximum possible m
-            double coefficients[1 + 2 * MAX_HARMONIC];
-            // Ensure buffer is large enough (should always be true if max_m <= MAX_HARMONIC)
-            if ((size_t)num_coeffs_required > sizeof(coefficients)/sizeof(coefficients[0])) {
-                 fprintf(stderr, "FATAL ERROR: Coefficient buffer overflow detected for m=%d. Increase MAX_HARMONIC?\n", m_deg);
-                 fclose(heatmap_file); // Close file before exiting
-                 return 1; // Critical error
-            }
+            // Avoid x0 == x1 using a relative epsilon check
+            if (fabs(current_x0 - x1_fixed_a) < DBL_EPSILON * fmax(1.0, fmax(fabs(current_x0), fabs(x1_fixed_a)))) continue;
 
-            double y_approx_plot[NUM_PLOT_POINTS]; // Buffer for plotting approximated values
+            RootResult secant_res_a = secantMethod(current_x0, x1_fixed_a, current_precision, MAX_ITERATIONS);
+            appendSecantResultToCsv(csv_file, current_x0, x1_fixed_a, current_precision, secant_res_a);
 
-            // Call the function to calculate coefficients using direct summation
-            int status = calculateTrigonometricCoeffsDirect(sample_x, sample_y, n_val, m_deg, coefficients);
+            // Break *after* processing b
+            if (fabs(current_x0 - b) < DBL_EPSILON) break;
+        }
 
-            // Process Results
-            ErrorResult errors;
-            // Status should be 0 if m < n/2 check passed, but check anyway.
-            if (status == 0) { // Calculation succeeded
-                // Evaluate the resulting trigonometric sum on the dense plot grid
-                for (int j = 0; j < NUM_PLOT_POINTS; j++) {
-                    y_approx_plot[j] = evaluateTrigonometricSum(x_plot[j], coefficients, m_deg);
-                }
-                // Save the evaluated trigonometric sum data for plotting
-                char approx_filename[100];
-                // Use 'm' (m_deg) in the filename
-                snprintf(approx_filename, sizeof(approx_filename), "trig_approx_m%d_points%d.dat", m_deg, n_val);
-                saveDataToFile(approx_filename, x_plot, y_approx_plot, NUM_PLOT_POINTS);
-                // Calculate approximation errors by comparing with true function values
-                errors = calculateError(y_true_plot, y_approx_plot, NUM_PLOT_POINTS);
-            } else { // Calculation failed (e.g., validation inside the function)
-                // Should not happen if m < n/2 check is correct, but handle defensively
-                errors.max_error = NAN;
-                errors.mean_squared_error = NAN;
-            }
-            // Append errors (or NANs for skipped/failed cases) to the CSV file
-            // Pass m_deg as the parameter 'm'
-            appendErrorToHeatmapFile(heatmap_file, n_val, m_deg, errors.max_error, errors.mean_squared_error);
+         // --- Secant Method - Case 2: x1 = b (fixed), x0 iterates ---
+        printf("  Running Secant Method (x1 = b = %.2f fixed)...\n", b);
+        double x1_fixed_b = b;
+        // Iterate x0 from a up to b (inclusive)
+         for (double x0 = a; x0 <= b + epsilon; x0 += START_POINT_STEP) {
+             double current_x0 = x0;
+             if (x0 > b && x0 < b + epsilon) {
+                 current_x0 = b;
+             }
+             if (current_x0 > b + epsilon) break;
 
-        } // End inner loop m (max harmonic)
-    } // End outer loop n (number of points)
+             // Avoid x0 == x1 using a relative epsilon check
+             if (fabs(current_x0 - x1_fixed_b) < DBL_EPSILON * fmax(1.0, fmax(fabs(current_x0), fabs(x1_fixed_b)))) continue;
 
-    printf("=========================================================================================================\n");
-    printf("Completed trigonometric approximation analysis.\n");
-    // --- Close the Heatmap CSV File ---
-    fclose(heatmap_file);
-    printf("Heatmap data saved to %s\n", heatmap_filename);
+             RootResult secant_res_b = secantMethod(current_x0, x1_fixed_b, current_precision, MAX_ITERATIONS);
+             appendSecantResultToCsv(csv_file, current_x0, x1_fixed_b, current_precision, secant_res_b);
 
-    // --- Generate Gnuplot Script for Individual Plots ---
-    printf("\nGenerating Gnuplot script for individual trigonometric plots (m < n/2)...\n");
-    // Pass max_m to the script generator
-    generateAllIndividualTrigApproxScripts(MIN_HEATMAP_N, max_n, max_m);
+             // Break *after* processing b
+             if (fabs(current_x0 - b) < DBL_EPSILON) break;
+         }
+         printf("\n"); // Newline after each precision level
 
-    // --- Python script handles heatmaps ---
-    printf("Heatmap generation is handled by plot_heatmaps.py.\n");
+    } // End loop over precision values
 
-    // --- Final Instructions for User ---
-    printf("\n=========================================================================================================\n");
+    printf("===================================================================\n");
+    printf("Completed root-finding analysis.\n");
+
+    // --- Close the Results CSV File ---
+    fclose(csv_file);
+    printf("Results saved to data/%s\n", results_filename);
+
+    printf("\nIteration heatmap plots will be generated by the Python script.\n");
+    // Removed call to generateIterationPlotScripts
+
+    // --- Final Instructions ---
+    printf("\n===================================================================\n");
     printf("Analysis and data generation complete.\n");
-    printf("Data files saved in: data/\n");
-    printf("Gnuplot script for individual plots saved in: scripts/\n");
+    printf("Data file saved in: data/\n");
+    printf("Gnuplot script for function plot saved in: scripts/\n");
     printf("\nTo generate plots:\n");
     printf("1. Ensure Python3 with pandas, matplotlib, seaborn, and numpy is installed.\n");
     printf("   (Activate your virtual environment if used: source .venv/bin/activate)\n");
-    printf("2. Ensure Gnuplot is installed.\n");
-    printf("3. Open a terminal in the project's root directory.\n");
-    printf("4. **Crucially, modify 'src/plot_heatmaps.py':**\n"); // Emphasize Python script modification
-    printf("   - Update `CSV_FILE` to read '%s'.\n", heatmap_filename);
-    printf("   - Change the X-axis label and relevant titles to use 'Max Harmonic (m)'.\n");
-    printf("   - Update the expected column name in `required_cols` to 'm'.\n");
-    printf("   - Adjust output plot filenames if desired.\n");
-    printf("5. Run the Python script for heatmaps:\n");
-    printf("   python3 src/plot_heatmaps.py\n");
-    printf("6. Run the Gnuplot script for individual plots:\n");
-    printf("   gnuplot scripts/plot_all_trig_approximations.gp\n");
-    printf("7. Alternatively, update the Makefile targets (`HEATMAP_DATA`, help messages etc.) and use:\n");
-    printf("   make plots\n");
+    printf("2. Run the Python script for tables and heatmaps:\n");
+    printf("   python3 src/plot_results.py\n");
+    printf("3. Optionally, run Gnuplot for the function plot:\n");
+    printf("   gnuplot scripts/plot_function.gp\n");
+    printf("4. Alternatively, use the Makefile:\n");
+    printf("   make plots   (runs C code, then Python script)\n");
+    printf("   make gnuplot_func_plot (runs only the Gnuplot function plot)\n");
     printf("Generated plots (.png, .svg, etc.) will be saved in: plots/\n");
-    printf("=========================================================================================================\n");
+    printf("===================================================================\n");
 
     return 0;
 }

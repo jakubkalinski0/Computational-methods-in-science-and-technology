@@ -1,84 +1,65 @@
 /**
  * @file fileio.h
- * @brief Header file for file input/output operations related to trigonometric approximation.
+ * @brief Header file for file input/output operations related to root finding.
  *
- * Defines function prototypes for saving data sets (function points, sample points,
- * approximated sum points) and approximation errors to files. Includes prototypes
- * for generating Gnuplot scripts to visualize approximation results and error trends,
- * assuming a standard project directory structure ('data/', 'scripts/', 'plots/').
- * Adjusted for parametrization by max harmonic 'm'.
+ * Defines function prototypes for saving root-finding results to a CSV file
+ * and for generating Gnuplot scripts to visualize the function and iteration counts.
  */
 #ifndef FILEIO_H
 #define FILEIO_H
 
-#include "common.h" // Includes common definitions like MAX_NODES, a, b, omega
-#include <stdio.h> // Provides FILE* type definition
+#include "common.h"       // Includes common definitions like a, b
+#include "root_finding.h" // Includes RootResult struct definition
+#include <stdio.h>        // Provides FILE* type definition
 
 /**
- * @brief Saves a set of (x, y) data points to a specified file within the 'data/' directory.
+ * @brief Opens and prepares the main CSV file for storing all root-finding results.
  *
- * Versatile function for saving original function, evaluated trigonometric sum, etc.
- * Automatically prepends "data/" to the filename.
+ * Creates the file (overwriting if it exists) and writes the header row.
+ * The caller is responsible for closing the file using fclose().
  *
- * @param filename Base name of the file (e.g., "original_function_plot.dat", "trig_approx_m5_points50.dat").
- *                 Final path will be "data/<filename>".
- * @param x Array of x-coordinates.
- * @param y Array of y-coordinates.
- * @param n Number of data points to save.
+ * @param filename The base name of the CSV file (e.g., "root_finding_results.csv").
+ *                 The final path will be "data/<filename>".
+ * @return A FILE pointer to the opened file, or NULL on failure. Prints error to stderr on failure.
  */
-void saveDataToFile(const char* filename, double x[], double y[], int n);
+FILE* openResultCsvFile(const char* filename);
 
 /**
- * @brief Saves the sample points (x_i, y_i) used for generating the least-squares trigonometric approximation.
+ * @brief Appends a single result row for Newton's method to the opened CSV file.
  *
- * Saves the discrete points used as input to the coefficient calculation function.
- * Files are saved in the 'data/' subdirectory.
- *
- * @param filename Base name of the file (e.g., "sample_points_n50.dat").
- *                 Final path will be "data/<filename>".
- * @param points_x Array of sample point x-coordinates.
- * @param points_y Array of sample point y-coordinates.
- * @param n Number of sample points.
+ * @param file The FILE pointer returned by openResultCsvFile. Must not be NULL.
+ * @param x0 The starting point used.
+ * @param precision The precision (rho) used for stopping criteria.
+ * @param result The RootResult struct containing the outcome of the Newton method run.
  */
-void saveNodesToFile(const char* filename, double points_x[], double points_y[], int n);
+void appendNewtonResultToCsv(FILE* file, double x0, double precision, RootResult result);
 
 /**
- * @brief Appends approximation errors (N, m, Max Absolute, MSE) to a CSV file for heatmap plotting.
+ * @brief Appends a single result row for the Secant method to the opened CSV file.
  *
- * Designed to write a single row of data for a specific (n, m) combination
- * to an already opened file stream. The file must be opened and the header
- * written by the caller. Handles NAN values appropriately.
- *
- * @param file The already opened FILE pointer for the heatmap CSV file.
- * @param n The number of sample points.
- * @param m The maximum harmonic order used in the approximation.
- * @param max_error The calculated maximum absolute error for this (n, m). Should be NAN if m >= n/2 or calculation failed.
- * @param mse_error The calculated mean squared error for this (n, m). Should be NAN if m >= n/2 or calculation failed.
+ * @param file The FILE pointer returned by openResultCsvFile. Must not be NULL.
+ * @param x0 The first starting point used.
+ * @param x1 The second starting point used.
+ * @param precision The precision (rho) used for stopping criteria.
+ * @param result The RootResult struct containing the outcome of the Secant method run.
  */
-void appendErrorToHeatmapFile(FILE* file, int n, int m, double max_error, double mse_error);
-
+void appendSecantResultToCsv(FILE* file, double x0, double x1, double precision, RootResult result);
 
 /**
- * @brief Generates a single Gnuplot script ('scripts/plot_all_trig_approximations.gp')
- *        to visualize individual trigonometric approximation results for valid (n, m) combinations (m < n/2).
+ * @brief Generates a Gnuplot script to plot the function f(x) over the interval [a, b].
  *
- * Creates a Gnuplot script that, when executed, generates a series of PNG plots,
- * one for each valid (n, m) combination where the condition `m < n/2` holds.
- * Each plot compares:
- * 1. The original function `f(x)` (read from 'data/original_function_plot.dat').
- * 2. The approximating trigonometric sum `T_m(x)` (read from 'data/trig_approx_m{m}_points{n}.dat').
- *    The script includes a check to see if this file exists before trying to plot it.
- * 3. The discrete sample points (x_i, y_i) used for the approximation (read from 'data/sample_points_n{n}.dat').
+ * Creates a script that plots f(x) and saves it as a PNG file. Also generates the necessary data file.
  *
- * Output plots (.png) are saved in the 'plots/' directory with names like 'plots/trig_approx_m{m}_n{n}.png'.
- * The script uses Gnuplot's `do for` loops and includes commands to ensure directories exist.
- * It incorporates Gnuplot's `fileexists()` function (Gnuplot >= 5.2) or simulates it to handle cases where
- * the approximation data file might not have been generated (due to m >= n/2 or other errors).
- *
- * @param min_n Minimum number of sample points included in the data.
- * @param max_n Maximum number of sample points included in the data.
- * @param max_m Maximum harmonic order included in the data (used as the upper loop limit for m).
+ * @param script_filename Base name for the Gnuplot script (e.g., "plot_function.gp").
+ *                        Final path: "scripts/<script_filename>".
+ * @param plot_filename Base name for the output plot PNG (e.g., "function_plot.png").
+ *                      Final path: "plots/<plot_filename>".
+ * @param num_points Number of points to use for plotting the function curve.
  */
-void generateAllIndividualTrigApproxScripts(int min_n, int max_n, int max_m);
+void generateFunctionPlotScript(const char* script_filename, const char* plot_filename, int num_points);
+
+
+// Removed declaration for generateIterationPlotScripts.
+// Python script (plot_results.py) is used for actual heatmap generation.
 
 #endif // FILEIO_H

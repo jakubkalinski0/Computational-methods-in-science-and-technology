@@ -1,145 +1,119 @@
 /**
  * @file fileio.c
- * @brief Implementation of file input/output operations for trigonometric approximation analysis (direct method).
- *
- * Contains functions for saving data points, sample nodes, appending heatmap errors (N, m, Errors),
- * and generating a Gnuplot script to visualize individual approximation results,
- * parameterized by max harmonic 'm' and respecting the m < n/2 condition.
+ * @brief Implementation of file I/O operations for root finding analysis.
  */
-#include "../include/fileio.h" // Function prototypes and common includes (common.h)
-#include <stdio.h>             // Standard I/O functions (fopen, fprintf, fclose, FILE)
-#include <stdlib.h>            // Standard library
-#include <string.h>            // For string manipulation (like snprintf)
-#include <math.h>              // For NAN, isnan
+#include "../include/fileio.h"
+#include "../include/function.h" // For f(x), a, b, N_param, M_param
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h> // For snprintf
+#include <math.h>   // For isnan
 
-// saveDataToFile: Saves generic (x, y) data. Remains unchanged.
-void saveDataToFile(const char* filename, double x[], double y[], int n) {
+/**
+ * @brief Opens and prepares the main CSV file for storing all root-finding results.
+ */
+FILE* openResultCsvFile(const char* filename) {
     char filepath[256];
     snprintf(filepath, sizeof(filepath), "data/%s", filename);
 
     FILE *file = fopen(filepath, "w");
     if (file == NULL) {
-        fprintf(stderr, "Error [saveDataToFile]: Could not open file: %s\n", filepath);
-        return;
+        fprintf(stderr, "Error [openResultCsvFile]: Could not open file: %s\n", filepath);
+        return NULL;
     }
 
-    for (int i = 0; i < n; i++) {
-        fprintf(file, "%lf %lf\n", x[i], y[i]);
-    }
+    // Write CSV Header
+    fprintf(file, "Method,x0,x1,PrecisionRho,Root,Iterations,FinalError,Status\n");
+    // Note: x1 is NAN for Newton
 
-    fclose(file);
+    return file;
 }
 
-// saveNodesToFile: Saves sample points (x, y). Remains unchanged.
-void saveNodesToFile(const char* filename, double points_x[], double points_y[], int n) {
-    char filepath[256];
-    snprintf(filepath, sizeof(filepath), "data/%s", filename);
-
-    FILE *file = fopen(filepath, "w");
-    if (file == NULL) {
-        fprintf(stderr, "Error [saveNodesToFile]: Could not open file: %s\n", filepath);
-        return;
+/**
+ * @brief Writes a double value or "NAN" string to the file.
+ */
+void fprintfDoubleOrNAN(FILE* file, double value, const char* suffix) {
+    if (isnan(value)) {
+        fprintf(file, "NAN%s", suffix);
+    } else {
+        fprintf(file, "%.16e%s", value, suffix); // High precision scientific notation
     }
+}
 
-    for (int i = 0; i < n; i++) {
-        fprintf(file, "%lf %lf\n", points_x[i], points_y[i]);
-    }
+/**
+ * @brief Appends a single result row for Newton's method to the opened CSV file.
+ */
+void appendNewtonResultToCsv(FILE* file, double x0, double precision, RootResult result) {
+    if (file == NULL) return;
+    fprintf(file, "Newton,%.16e,NAN,%.1e,", x0, precision); // x1 is NAN for Newton
+    fprintfDoubleOrNAN(file, result.root, ",");
+    fprintf(file, "%d,", result.iterations);
+    fprintfDoubleOrNAN(file, result.final_error, ",");
+    fprintf(file, "%d\n", result.status);
+}
 
-    fclose(file);
+/**
+ * @brief Appends a single result row for the Secant method to the opened CSV file.
+ */
+void appendSecantResultToCsv(FILE* file, double x0, double x1, double precision, RootResult result) {
+    if (file == NULL) return;
+    fprintf(file, "Secant,%.16e,%.16e,%.1e,", x0, x1, precision);
+    fprintfDoubleOrNAN(file, result.root, ",");
+    fprintf(file, "%d,", result.iterations);
+    fprintfDoubleOrNAN(file, result.final_error, ",");
+    fprintf(file, "%d\n", result.status);
 }
 
 
 /**
- * @brief Appends approximation errors (N, m, Max Absolute, MSE) to a CSV file for heatmap plotting.
- *
- * Writes a single row for a specific (n, m) combination. Handles NAN values.
- * Parameter 'm' is the max harmonic order.
+ * @brief Generates a Gnuplot script to plot the function f(x) over the interval [a, b].
  */
-void appendErrorToHeatmapFile(FILE* file, int n, int m, double max_error, double mse_error) {
-    if (file == NULL) {
-        fprintf(stderr, "Error [appendErrorToHeatmapFile]: Invalid file pointer.\n");
-        return;
-    }
-    // Write n, m (max harmonic), max_error, and mse_error.
-    // Use %.10e for scientific notation. Write "NAN" string if value is NaN.
-    fprintf(file, "%d,%d,", n, m); // Use 'm' here
-    if (isnan(max_error)) {
-        fprintf(file, "NAN,");
-    } else {
-        fprintf(file, "%.10e,", max_error);
-    }
-    if (isnan(mse_error)) {
-        fprintf(file, "NAN\n");
-    } else {
-        fprintf(file, "%.10e\n", mse_error);
-    }
-}
-
-
-/**
- * @brief Generates a single Gnuplot script ('scripts/plot_all_trig_approximations.gp')
- *        to visualize individual trigonometric approximation results for valid (n, m) combinations (m < n/2).
- *
- * Creates the script using nested loops and includes a check for the existence of the
- * approximation data file before attempting to plot it, ensuring robustness even if
- * some calculations failed or were skipped due to the m < n/2 condition.
- */
-void generateAllIndividualTrigApproxScripts(int min_n, int max_n, int max_m) {
+void generateFunctionPlotScript(const char* script_filename, const char* plot_filename, int num_points) {
     char script_path[256];
-    // Use a consistent script name
-    snprintf(script_path, sizeof(script_path), "scripts/plot_all_trig_approximations.gp");
+    char plot_path[256];
+    char data_path[256];
 
-    FILE *gnuplot_script = fopen(script_path, "w");
-    if (gnuplot_script == NULL) {
-        fprintf(stderr,"Error [generateAllIndividualTrigApproxScripts]: Cannot open file %s for writing.\n", script_path);
+    snprintf(script_path, sizeof(script_path), "scripts/%s", script_filename);
+    snprintf(plot_path, sizeof(plot_path), "plots/%s", plot_filename);
+    snprintf(data_path, sizeof(data_path), "data/function_data.dat");
+
+    // --- Generate Data for the Plot ---
+    FILE *data_file = fopen(data_path, "w");
+    if (data_file == NULL) {
+        fprintf(stderr, "Error [generateFunctionPlotScript]: Cannot open data file %s for writing.\n", data_path);
+        return;
+    }
+    double step = (b - a) / (double)(num_points - 1);
+    for (int i = 0; i < num_points; ++i) {
+        double x = a + i * step;
+        if (i == num_points - 1) x = b; // Ensure endpoint
+        fprintf(data_file, "%.10f %.10f\n", x, f(x));
+    }
+    fclose(data_file);
+    printf("Generated function data for plotting: %s\n", data_path);
+
+    // --- Generate Gnuplot Script ---
+    FILE *gp_script = fopen(script_path, "w");
+    if (gp_script == NULL) {
+        fprintf(stderr, "Error [generateFunctionPlotScript]: Cannot open script file %s for writing.\n", script_path);
         return;
     }
 
-    // --- Common Gnuplot Settings ---
-    fprintf(gnuplot_script, "# Gnuplot script: Plot individual trigonometric approximation results (Direct Method, m < n/2)\n");
-    fprintf(gnuplot_script, "# Generated by: C program (main.c -> generateAllIndividualTrigApproxScripts)\n\n");
-    fprintf(gnuplot_script, "# Ensure required directories exist\n");
-    fprintf(gnuplot_script, "system 'mkdir -p plots data'\n\n");
-    fprintf(gnuplot_script, "# Terminal settings (PNG output)\n");
-    fprintf(gnuplot_script, "set terminal pngcairo enhanced size 1200,800 font 'Arial,12'\n");
-    fprintf(gnuplot_script, "set grid\n");
-    fprintf(gnuplot_script, "set key top right outside spacing 1.1\n");
-    fprintf(gnuplot_script, "set xlabel 'x'\n");
-    fprintf(gnuplot_script, "set ylabel 'f(x), T_m(x)'\n");
-    fprintf(gnuplot_script, "set xrange [%.4f:%.4f]\n", a, b); // Use global interval bounds
-    // Adjust yrange if necessary based on function behavior
-    fprintf(gnuplot_script, "set yrange [-15:15]\n");
-    fprintf(gnuplot_script, "\n# Define maximum harmonic 'm' used in loops\n");
-    fprintf(gnuplot_script, "max_m = %d\n\n", max_m);
+    fprintf(gp_script, "# Gnuplot script: Plot function f(x)\n");
+    fprintf(gp_script, "set terminal pngcairo enhanced size 800,600 font 'Arial,10'\n");
+    fprintf(gp_script, "set output '%s'\n", plot_path);
+    fprintf(gp_script, "set title 'Function f(x) = x^{%.0f} + x^{%.0f}'\n", N_param, M_param);
+    fprintf(gp_script, "set xlabel 'x'\n");
+    fprintf(gp_script, "set ylabel 'f(x)'\n");
+    fprintf(gp_script, "set grid\n");
+    fprintf(gp_script, "set zeroaxis lw 2\n");
+    fprintf(gp_script, "set xrange [%.4f:%.4f]\n", a, b);
+    // fprintf(gp_script, "set yrange [-1:2]\n"); // Adjust yrange based on function behavior in interval
+    fprintf(gp_script, "plot '%s' using 1:2 with lines lw 2 title 'f(x)'\n", data_path);
 
-    // --- Gnuplot Nested Loops ---
-    fprintf(gnuplot_script, "# Loop through number of points n\n");
-    fprintf(gnuplot_script, "do for [n=%d:%d] {\n", min_n, max_n);
-    fprintf(gnuplot_script, "    print sprintf(\"Gnuplot: Processing n = %%d\", n)\n"); // Progress indicator
-    fprintf(gnuplot_script, "    # Loop through max harmonic m\n");
-    fprintf(gnuplot_script, "    do for [m=0:max_m] {\n");
-    // --- Condition Check (m < n/2) inside Gnuplot ---
-    // Use 2.0 for floating point division, crucial for odd n
-    fprintf(gnuplot_script, "        if (m < n / 2.0) {\n");
-    fprintf(gnuplot_script, "            # Define filenames for this (n, m) combination\n");
-    fprintf(gnuplot_script, "            sample_file = sprintf(\"data/sample_points_n%%d.dat\", n)\n");
-    fprintf(gnuplot_script, "            approx_file = sprintf(\"data/trig_approx_m%%d_points%%d.dat\", m, n)\n");
-    fprintf(gnuplot_script, "            output_png = sprintf('plots/trig_approx_m%%d_n%%d.png', m, n)\n");
-    fprintf(gnuplot_script, "            plot_title = sprintf(\"Trigonometric Approx (n=%%d points, max harmonic m=%%d)\", n, m)\n\n");
-    fprintf(gnuplot_script, "            set output output_png\n");
-    fprintf(gnuplot_script, "            set title plot_title\n\n");
-    fprintf(gnuplot_script, "            plot 'data/original_function_plot.dat' \\\n");
-    fprintf(gnuplot_script, "                    with lines dashtype 2 lw 3 lc rgb 'blue' title 'Original function f(x)', \\\n");
-    fprintf(gnuplot_script, "                 approx_file using 1:2 \\\n");
-    fprintf(gnuplot_script, "                    with lines lw 3 lc rgb 'red' title sprintf('Approximating T_{%%d}(x)', m), \\\n");
-    fprintf(gnuplot_script, "                 sample_file \\\n");
-    fprintf(gnuplot_script, "                    with points pt 7 ps 1.5 lc rgb 'black' title 'Sample points (x_i, y_i)'\n");
-    fprintf(gnuplot_script, "        } \n");
-    fprintf(gnuplot_script, "    } \n");
-    fprintf(gnuplot_script, "} \n\n");
-    fprintf(gnuplot_script, "print \"Gnuplot script finished.\"\n");
-
-    fclose(gnuplot_script);
-    printf("Generated Gnuplot script for individual trigonometric approximations: %s\n", script_path);
-    printf("Note: Gnuplot script uses fileexists() (Gnuplot >= 5.2) to check for approximation data files.\n");
+    fclose(gp_script);
+    printf("Generated Gnuplot script for function plot: %s\n", script_path);
 }
+
+// Removed generateIterationPlotScripts function as it's redundant.
+// Python script (plot_results.py) is used for actual heatmap generation.
