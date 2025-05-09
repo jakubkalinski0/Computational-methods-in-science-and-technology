@@ -28,22 +28,24 @@ FILE* openResultCsvFile(const char* filename);
  * @brief Appends a single result row for Newton's method to the opened CSV file.
  *
  * @param file The FILE pointer returned by openResultCsvFile. Must not be NULL.
+ * @param stop_criterion_name String representation of the stopping criterion used.
  * @param x0 The starting point used.
  * @param precision The precision (rho) used for stopping criteria.
  * @param result The RootResult struct containing the outcome of the Newton method run.
  */
-void appendNewtonResultToCsv(FILE* file, double x0, double precision, RootResult result);
+void appendNewtonResultToCsv(FILE* file, const char* stop_criterion_name, double x0, double precision, RootResult result);
 
 /**
  * @brief Appends a single result row for the Secant method to the opened CSV file.
  *
  * @param file The FILE pointer returned by openResultCsvFile. Must not be NULL.
+ * @param stop_criterion_name String representation of the stopping criterion used.
  * @param x0 The first starting point used.
  * @param x1 The second starting point used.
  * @param precision The precision (rho) used for stopping criteria.
  * @param result The RootResult struct containing the outcome of the Secant method run.
  */
-void appendSecantResultToCsv(FILE* file, double x0, double x1, double precision, RootResult result);
+void appendSecantResultToCsv(FILE* file, const char* stop_criterion_name, double x0, double x1, double precision, RootResult result);
 
 /**
  * @brief Generates a Gnuplot script to plot the function f(x) over the interval [a, b].

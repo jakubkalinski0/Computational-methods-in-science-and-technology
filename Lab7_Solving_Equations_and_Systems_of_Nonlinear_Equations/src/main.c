@@ -2,15 +2,15 @@
  * @file main.c
  * @brief Main program driver for finding roots of f(x) = x^n + x^m using Newton's and Secant methods.
  *        Analyzes convergence and iteration counts across ranges of starting points
- *        and precision values (rho).
+ *        and precision values (rho), for different stopping criteria.
  *        Generates data (CSV for tables/plots) and basic Gnuplot scripts.
  *        Detailed visualization (heatmaps) is handled by an external Python script.
  *        Uses simplified loops with epsilon comparison for endpoint and float equality.
  */
-#include "../include/common.h"     // Common definitions (constants a, b, N_param, M_param, MAX_ITERATIONS)
+#include "../include/common.h"     // Common definitions
 #include "../include/function.h"   // Function f(x), df(x)
-#include "../include/root_finding.h" // Newton's and Secant methods
-#include "../include/fileio.h"     // File I/O (saving results, generating Gnuplot scripts)
+#include "../include/root_finding.h" // Newton's and Secant methods, StopCriterionType
+#include "../include/fileio.h"     // File I/O
 #include <stdio.h>                // Standard Input/Output
 #include <stdlib.h>               // Standard Library
 #include <math.h>                 // For fabs, pow, fmax
@@ -26,13 +26,22 @@ const double PRECISION_VALUES[NUM_PRECISIONS] = {
     1e-2, 1e-3, 1e-4, 1e-5, 1e-7, 1e-10, 1e-15
 };
 
+// Define names for stopping criteria (for CSV and logging)
+const char* STOP_CRITERION_NAMES[] = {
+    "Stop_dX",    // Corresponds to STOP_ON_X_DIFF
+    "Stop_fX",    // Corresponds to STOP_ON_F_ABS
+    "Stop_Both"   // Corresponds to STOP_ON_BOTH
+};
+#define NUM_STOP_CRITERIA (sizeof(STOP_CRITERION_NAMES)/sizeof(STOP_CRITERION_NAMES[0]))
+
+
 /**
  * @brief Main entry point for the root-finding analysis program.
  */
 int main() {
     printf("--- Root Finding Analysis for f(x) = x^%.0f + x^%.0f on [%.2f, %.2f] ---\n", N_param, M_param, a, b);
     printf("Methods: Newton, Secant\n");
-    printf("Stopping Criteria: |x_next - x_curr| < rho AND |f(x_next)| < rho\n");
+    printf("Stopping Criteria to be tested: |x_next - x_curr| < rho; |f(x_next)| < rho; Both\n");
     printf("Generates CSV data and triggers Python script for plots.\n\n");
 
     // --- Generate Plot of f(x) ---
@@ -51,90 +60,77 @@ int main() {
     printf("\nStarting root-finding analysis...\n");
     printf("===================================================================\n");
 
-    // Epsilon for floating point comparisons near loop boundaries
-    // Use a small fraction of the step size to decide if we are close enough to b
-    double epsilon = START_POINT_STEP * 0.01; // Small tolerance relative to step
+    double epsilon = START_POINT_STEP * 0.01;
 
-    // --- Iterate Through Precision Values ---
-    for (int p_idx = 0; p_idx < NUM_PRECISIONS; ++p_idx) {
-        double current_precision = PRECISION_VALUES[p_idx];
-        printf("Processing Precision rho = %.1e\n", current_precision);
+    // --- Iterate Through Stopping Criteria ---
+    for (unsigned int crit_idx = 0; crit_idx < NUM_STOP_CRITERIA; ++crit_idx) {
+        StopCriterionType current_criterion_type = (StopCriterionType)crit_idx;
+        const char* current_criterion_name = STOP_CRITERION_NAMES[crit_idx];
+        printf("Processing for Stop Criterion: %s\n", current_criterion_name);
 
-        // --- Newton's Method ---
-        printf("  Running Newton's Method...\n");
-        // Iterate starting points x0 from a up to b (inclusive)
-        for (double x0 = a; x0 <= b + epsilon; x0 += START_POINT_STEP) {
-            double current_x0 = x0;
-            // Clamp to b if we slightly overshoot due to float addition
-            if (x0 > b && x0 < b + epsilon) {
-                current_x0 = b;
+        // --- Iterate Through Precision Values ---
+        for (int p_idx = 0; p_idx < NUM_PRECISIONS; ++p_idx) {
+            double current_precision = PRECISION_VALUES[p_idx];
+            printf("  Processing Precision rho = %.1e (Criterion: %s)\n", current_precision, current_criterion_name);
+
+            // --- Newton's Method ---
+            printf("    Running Newton's Method...\n");
+            for (double x0 = a; x0 <= b + epsilon; x0 += START_POINT_STEP) {
+                double current_x0 = x0;
+                if (x0 > b && x0 < b + epsilon) current_x0 = b;
+                if (current_x0 > b + epsilon) break;
+
+                RootResult newton_res = newtonMethod(current_x0, current_precision, MAX_ITERATIONS, current_criterion_type);
+                appendNewtonResultToCsv(csv_file, current_criterion_name, current_x0, current_precision, newton_res);
+
+                if (fabs(current_x0 - b) < DBL_EPSILON) break;
             }
-            // Ensure we don't go significantly past b
-            if (current_x0 > b + epsilon) break;
 
-            RootResult newton_res = newtonMethod(current_x0, current_precision, MAX_ITERATIONS);
-            appendNewtonResultToCsv(csv_file, current_x0, current_precision, newton_res);
+            // --- Secant Method - Case 1: x1 = a (fixed), x0 iterates ---
+            printf("    Running Secant Method (x1 = a = %.2f fixed)...\n", a);
+            double x1_fixed_a = a;
+            for (double x0 = a + START_POINT_STEP; x0 <= b + epsilon; x0 += START_POINT_STEP) {
+                double current_x0 = x0;
+                if (x0 > b && x0 < b + epsilon) current_x0 = b;
+                if (current_x0 > b + epsilon) break;
 
-            // Break *after* processing b
-            if (fabs(current_x0 - b) < DBL_EPSILON) break;
-        }
+                if (fabs(current_x0 - x1_fixed_a) < DBL_EPSILON * fmax(1.0, fmax(fabs(current_x0), fabs(x1_fixed_a)))) continue;
 
-        // --- Secant Method - Case 1: x1 = a (fixed), x0 iterates ---
-        printf("  Running Secant Method (x1 = a = %.2f fixed)...\n", a);
-        double x1_fixed_a = a;
-        // Iterate x0 from a + step up to b (inclusive)
-        for (double x0 = a + START_POINT_STEP; x0 <= b + epsilon; x0 += START_POINT_STEP) {
-            double current_x0 = x0;
-            if (x0 > b && x0 < b + epsilon) {
-                current_x0 = b;
+                RootResult secant_res_a = secantMethod(current_x0, x1_fixed_a, current_precision, MAX_ITERATIONS, current_criterion_type);
+                appendSecantResultToCsv(csv_file, current_criterion_name, current_x0, x1_fixed_a, current_precision, secant_res_a);
+
+                if (fabs(current_x0 - b) < DBL_EPSILON) break;
             }
-            if (current_x0 > b + epsilon) break;
 
-            // Avoid x0 == x1 using a relative epsilon check
-            if (fabs(current_x0 - x1_fixed_a) < DBL_EPSILON * fmax(1.0, fmax(fabs(current_x0), fabs(x1_fixed_a)))) continue;
+             // --- Secant Method - Case 2: x1 = b (fixed), x0 iterates ---
+            printf("    Running Secant Method (x1 = b = %.2f fixed)...\n", b);
+            double x1_fixed_b = b;
+             for (double x0 = a; x0 <= b + epsilon; x0 += START_POINT_STEP) {
+                 double current_x0 = x0;
+                 if (x0 > b && x0 < b + epsilon) current_x0 = b;
+                 if (current_x0 > b + epsilon) break;
 
-            RootResult secant_res_a = secantMethod(current_x0, x1_fixed_a, current_precision, MAX_ITERATIONS);
-            appendSecantResultToCsv(csv_file, current_x0, x1_fixed_a, current_precision, secant_res_a);
+                 if (fabs(current_x0 - x1_fixed_b) < DBL_EPSILON * fmax(1.0, fmax(fabs(current_x0), fabs(x1_fixed_b)))) continue;
 
-            // Break *after* processing b
-            if (fabs(current_x0 - b) < DBL_EPSILON) break;
-        }
+                 RootResult secant_res_b = secantMethod(current_x0, x1_fixed_b, current_precision, MAX_ITERATIONS, current_criterion_type);
+                 appendSecantResultToCsv(csv_file, current_criterion_name, current_x0, x1_fixed_b, current_precision, secant_res_b);
 
-         // --- Secant Method - Case 2: x1 = b (fixed), x0 iterates ---
-        printf("  Running Secant Method (x1 = b = %.2f fixed)...\n", b);
-        double x1_fixed_b = b;
-        // Iterate x0 from a up to b (inclusive)
-         for (double x0 = a; x0 <= b + epsilon; x0 += START_POINT_STEP) {
-             double current_x0 = x0;
-             if (x0 > b && x0 < b + epsilon) {
-                 current_x0 = b;
+                 if (fabs(current_x0 - b) < DBL_EPSILON) break;
              }
-             if (current_x0 > b + epsilon) break;
+             printf("\n");
+        } // End loop over precision values
+        printf("Finished processing for Stop Criterion: %s\n\n", current_criterion_name);
+    } // End loop over stop criteria
 
-             // Avoid x0 == x1 using a relative epsilon check
-             if (fabs(current_x0 - x1_fixed_b) < DBL_EPSILON * fmax(1.0, fmax(fabs(current_x0), fabs(x1_fixed_b)))) continue;
-
-             RootResult secant_res_b = secantMethod(current_x0, x1_fixed_b, current_precision, MAX_ITERATIONS);
-             appendSecantResultToCsv(csv_file, current_x0, x1_fixed_b, current_precision, secant_res_b);
-
-             // Break *after* processing b
-             if (fabs(current_x0 - b) < DBL_EPSILON) break;
-         }
-         printf("\n"); // Newline after each precision level
-
-    } // End loop over precision values
 
     printf("===================================================================\n");
     printf("Completed root-finding analysis.\n");
 
-    // --- Close the Results CSV File ---
     fclose(csv_file);
     printf("Results saved to data/%s\n", results_filename);
 
-    printf("\nIteration heatmap plots will be generated by the Python script.\n");
-    // Removed call to generateIterationPlotScripts
+    printf("\nIteration heatmap plots will be generated by the Python script for each stopping criterion.\n");
 
-    // --- Final Instructions ---
     printf("\n===================================================================\n");
     printf("Analysis and data generation complete.\n");
     printf("Data file saved in: data/\n");
@@ -150,6 +146,7 @@ int main() {
     printf("   make plots   (runs C code, then Python script)\n");
     printf("   make gnuplot_func_plot (runs only the Gnuplot function plot)\n");
     printf("Generated plots (.png, .svg, etc.) will be saved in: plots/\n");
+    printf("Generated tables (.txt) will be saved in: tables/\n");
     printf("===================================================================\n");
 
     return 0;

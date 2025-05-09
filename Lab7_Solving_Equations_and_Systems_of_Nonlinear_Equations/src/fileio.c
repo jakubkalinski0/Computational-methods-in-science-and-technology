@@ -23,7 +23,7 @@ FILE* openResultCsvFile(const char* filename) {
     }
 
     // Write CSV Header
-    fprintf(file, "Method,x0,x1,PrecisionRho,Root,Iterations,FinalError,Status\n");
+    fprintf(file, "Method,StopCriterion,x0,x1,PrecisionRho,Root,Iterations,FinalError,Status\n");
     // Note: x1 is NAN for Newton
 
     return file;
@@ -43,9 +43,9 @@ void fprintfDoubleOrNAN(FILE* file, double value, const char* suffix) {
 /**
  * @brief Appends a single result row for Newton's method to the opened CSV file.
  */
-void appendNewtonResultToCsv(FILE* file, double x0, double precision, RootResult result) {
+void appendNewtonResultToCsv(FILE* file, const char* stop_criterion_name, double x0, double precision, RootResult result) {
     if (file == NULL) return;
-    fprintf(file, "Newton,%.16e,NAN,%.1e,", x0, precision); // x1 is NAN for Newton
+    fprintf(file, "Newton,%s,%.16e,NAN,%.1e,", stop_criterion_name, x0, precision); // x1 is NAN for Newton
     fprintfDoubleOrNAN(file, result.root, ",");
     fprintf(file, "%d,", result.iterations);
     fprintfDoubleOrNAN(file, result.final_error, ",");
@@ -55,9 +55,9 @@ void appendNewtonResultToCsv(FILE* file, double x0, double precision, RootResult
 /**
  * @brief Appends a single result row for the Secant method to the opened CSV file.
  */
-void appendSecantResultToCsv(FILE* file, double x0, double x1, double precision, RootResult result) {
+void appendSecantResultToCsv(FILE* file, const char* stop_criterion_name, double x0, double x1, double precision, RootResult result) {
     if (file == NULL) return;
-    fprintf(file, "Secant,%.16e,%.16e,%.1e,", x0, x1, precision);
+    fprintf(file, "Secant,%s,%.16e,%.16e,%.1e,", stop_criterion_name, x0, x1, precision);
     fprintfDoubleOrNAN(file, result.root, ",");
     fprintf(file, "%d,", result.iterations);
     fprintfDoubleOrNAN(file, result.final_error, ",");
