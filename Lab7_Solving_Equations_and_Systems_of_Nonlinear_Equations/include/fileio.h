@@ -60,8 +60,18 @@ void appendSecantResultToCsv(FILE* file, const char* stop_criterion_name, double
  */
 void generateFunctionPlotScript(const char* script_filename, const char* plot_filename, int num_points);
 
-
-// Removed declaration for generateIterationPlotScripts.
-// Python script (plot_results.py) is used for actual heatmap generation.
+/**
+ * @brief Generates a Gnuplot script to plot the function f(x) over a zoomed interval.
+ *
+ * Creates a script that plots f(x) for a specific, "zoomed-in" view and saves it as a PNG.
+ * Uses the same data file as the main function plot.
+ *
+ * @param script_filename Base name for the Gnuplot script (e.g., "plot_function_zoomed.gp").
+ *                        Final path: "scripts/<script_filename>".
+ * @param plot_filename Base name for the output plot PNG (e.g., "function_plot_zoomed.png").
+ *                      Final path: "plots/<plot_filename>".
+ * @param data_filepath Path to the existing data file (e.g., "data/function_data.dat").
+ */
+void generateFunctionPlotScriptZoomed(const char* script_filename, const char* plot_filename, const char* data_filepath);
 
 #endif // FILEIO_H
