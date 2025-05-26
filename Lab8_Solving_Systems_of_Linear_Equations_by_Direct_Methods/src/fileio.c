@@ -1,398 +1,324 @@
-/**
- * @file fileio.c
- * @brief Implementation of file input/output operations for spline interpolation analysis.
- *
- * This file contains functions for saving data points, interpolation nodes,
- * calculated errors (maximum absolute and mean squared error) to files,
- * and for generating Gnuplot scripts to visualize the spline interpolation
- * results and error trends. It handles directory creation and formatting
- * data for storage and plotting.
- */
-#include "../include/fileio.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h> // For isnan, isinf
-#include "../include/common.h" // For a, b constants used in Gnuplot scripts
+#include "fileio.h" // Changed from output_gen.h
+#include <sys/stat.h> // For mkdir (POSIX)
+#include <errno.h>    // For errno
 
-/**
- * @brief Ensures that a specified directory path exists. If not, it attempts to create it.
- *
- * Uses the `mkdir -p` command, which creates parent directories as needed
- * and doesn't error if the directory already exists.
- * Prints a warning if the command execution fails.
- *
- * @param path The directory path to check/create (e.g., "data", "scripts/subdir").
- */
+#ifdef _WIN32
+#include <direct.h> // For _mkdir (Windows)
+#endif
+
 void ensure_directory_exists(const char* path) {
-    char command[300];
-    // Use sprintf to create the shell command "mkdir -p <path>"
-    sprintf(command, "mkdir -p %s", path);
-    // Execute the command using system()
-    int ret = system(command);
-    // Check the return status of the system command
-    if (ret != 0) {
-        // Print a warning if the command might have failed
-        fprintf(stderr, "Warning: Could not execute command '%s'. Directory '%s' might not exist.\n", command, path);
+    int ret;
+#ifdef _WIN32
+    ret = _mkdir(path);
+#else
+    // 0775 provides rwx for owner/group, rx for others
+    ret = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+#endif
+    if (ret == 0) {
+        // printf("Directory created: %s\n", path); // Optional: uncomment for verbose output
+    } else if (errno == EEXIST) {
+        // Directory already exists, which is fine.
+    } else {
+        fprintf(stderr, "Error creating directory %s: %s\n", path, strerror(errno));
+        // Decide if this is a fatal error for your application
     }
 }
 
-/**
- * @brief Saves a set of (x, y) data points to a file within the 'data/' directory.
- *
- * Ensures the 'data/' directory exists before attempting to write the file.
- * Handles NaN values in `y` by writing "nan" instead of a number.
- *
- * @param filename The base name of the file (e.g., "original_function.dat").
- * @param x Array of x-coordinates.
- * @param y Array of y-coordinates.
- * @param n The number of data points.
- */
-void saveDataToFile(const char* filename, double x[], double y[], int n) {
+
+void save_results_to_csv(
+    const char* base_filename, // e.g., "results_A_I"
+    const ExperimentResult* results_float,
+    const ExperimentResult* results_double,
+    const int* sizes,
+    int num_sizes) {
+
     char filepath[256];
-    // Construct the full path including the subdirectory
-    sprintf(filepath, "data/%s", filename);
-
-    FILE *file = fopen(filepath, "w"); // Open file for writing
-    if (file == NULL) {
-        // Print error message if file cannot be opened
-        printf("Error opening file: %s\n", filepath);
-        return;
-    }
-
-    // Write each (x, y) pair to the file, one pair per line
-    for (int i = 0; i < n; i++) {
-        fprintf(file, "%lf %lf\n", x[i], y[i]);
-    }
-
-    fclose(file); // Close the file
-}
-
-/**
- * @brief Saves the interpolation nodes (x, y) to a file in the 'data/' directory.
- *
- * @param filename The base name of the file (e.g., "uniform_nodes_n5.dat").
- * @param nodes Array of node x-coordinates.
- * @param values Array of node y-coordinates (function values at nodes).
- * @param n The number of nodes.
- */
-void saveNodesToFile(const char* filename, double nodes[], double values[], int n) {
-    char filepath[256];
-    // Construct the full path including the subdirectory
-    sprintf(filepath, "data/%s", filename);
-
-    FILE *file = fopen(filepath, "w"); // Open file for writing
-    if (file == NULL) {
-        // Print error message if file cannot be opened
-        printf("Error opening file: %s\n", filepath);
-        return;
-    }
-
-    // Write each node (x, y) pair to the file, one pair per line
-    for (int i = 0; i < n; i++) {
-        fprintf(file, "%lf %lf\n", nodes[i], values[i]);
-    }
-
-    fclose(file); // Close the file
-}
-
-
-/**
- * @brief Saves spline interpolation errors (max absolute error and MSE) to a CSV file.
- *
- * Ensures the 'data/' directory exists. Creates a CSV file named `<filename_base>.csv`.
- * The file contains columns: Number of Nodes (n), Max Absolute Error, Mean Squared Error.
- * Starts saving data from n=2 nodes up to `maxNodes`.
- * Handles NaN and Infinity values by writing "nan" or "inf".
- *
- * @param filename_base The base name for the output CSV file (e.g., "spline_errors_uniform").
- * @param maxNodes The maximum number of nodes analyzed (results are stored for n=2 to maxNodes).
- * @param errors Array containing the maximum absolute errors for n=2 to `maxNodes`. Array index `i` corresponds to `n = i + 2`.
- * @param mse Array containing the mean squared errors for n=2 to `maxNodes`. Array index `i` corresponds to `n = i + 2`.
- */
-void saveSplineErrorsToFile(const char* filename_base, int maxNodes, double errors[], double mse[]) {
-    // Ensure the target directory exists
     ensure_directory_exists("data");
+    sprintf(filepath, "data/%s.csv", base_filename);
+
+    FILE *f = fopen(filepath, "w");
+    if (f == NULL) {
+        fprintf(stderr, "Error opening file %s for writing.\n", filepath);
+        return;
+    }
+
+    fprintf(f, "Size,MaxAbsError_f32,CondNum_f32,TimeSolve_f32,TimeCond_f32,MaxAbsError_f64,CondNum_f64,TimeSolve_f64,TimeCond_f64\n");
+
+    for (int i = 0; i < num_sizes; i++) {
+        fprintf(f, "%d,", sizes[i]);
+        fprintf(f, "%.6e,%.6e,%.6f,%.6f,",
+                results_float[i].max_abs_error, results_float[i].condition_number,
+                results_float[i].time_solve_sec, results_float[i].time_cond_sec);
+        fprintf(f, "%.6e,%.6e,%.6f,%.6f\n",
+                results_double[i].max_abs_error, results_double[i].condition_number,
+                results_double[i].time_solve_sec, results_double[i].time_cond_sec);
+    }
+    fclose(f);
+    printf("Results saved to %s\n", filepath);
+}
+
+
+void generate_gnuplot_script_individual(
+    const char* csv_filename, // Full path to CSV, e.g., "data/results_A_I.csv"
+    const char* matrix_name,  // e.g., "A_I" or "A_II"
+    const char* plot_dir,     // e.g., "plots"
+    const char* script_dir,   // e.g., "scripts"
+    bool is_A_II) {
+
+    char script_filepath[256];
+    char plot_base_filepath[256];
+
+    ensure_directory_exists(plot_dir);
+    ensure_directory_exists(script_dir);
+
+    sprintf(script_filepath, "%s/plot_%s.gp", script_dir, matrix_name);
+    // Plot files will be named like "plots/A_I_error.png", "plots/A_I_cond.png", etc.
+    sprintf(plot_base_filepath, "%s/%s", plot_dir, matrix_name);
+
+
+    FILE *gp = fopen(script_filepath, "w");
+    if (gp == NULL) {
+        fprintf(stderr, "Error creating Gnuplot script %s.\n", script_filepath);
+        return;
+    }
+
+    fprintf(gp, "set terminal pngcairo enhanced size 1024,768 font 'Arial,10'\n");
+    fprintf(gp, "set datafile separator ','\n");
+    fprintf(gp, "set key top right spacing 1.2\n");
+    fprintf(gp, "set grid\n\n");
+
+    const char* marker_f32 = is_A_II ? "with lines lc rgb 'blue'" : "with linespoints pt 7 lc rgb 'blue'"; // circle
+    const char* marker_f64 = is_A_II ? "with lines lc rgb 'red'" : "with linespoints pt 6 lc rgb 'red'";   // square
+
+
+    // Max Absolute Error Plot
+    fprintf(gp, "set output '%s_error.png'\n", plot_base_filepath);
+    fprintf(gp, "set title 'Max Absolute Error vs Size (Matrix %s)'\n", matrix_name);
+    fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
+    fprintf(gp, "set ylabel 'Max Absolute Error (log scale)'\n");
+    fprintf(gp, "set logscale y\n");
+    fprintf(gp, "set format y '10^{%%L}'\n");
+    fprintf(gp, "plot '%s' using 1:2 %s title 'Error (float32)', \\\n", csv_filename, marker_f32);
+    fprintf(gp, "     '' u 1:6 %s title 'Error (float64)'\n\n", marker_f64);
+
+    // Condition Number Plot
+    fprintf(gp, "set output '%s_cond.png'\n", plot_base_filepath);
+    fprintf(gp, "set title 'Condition Number vs Size (Matrix %s)'\n", matrix_name);
+    fprintf(gp, "set ylabel 'Condition Number (log scale)'\n");
+    // logscale y and format y are already set
+    fprintf(gp, "plot '%s' using 1:3 %s title 'Cond Num (float32)', \\\n", csv_filename, marker_f32);
+    fprintf(gp, "     '' u 1:7 %s title 'Cond Num (float64)'\n\n", marker_f64);
+
+    // Solve Time Plot
+    fprintf(gp, "set output '%s_time_solve.png'\n", plot_base_filepath);
+    fprintf(gp, "set title 'Solve Time vs Size (Matrix %s)'\n", matrix_name);
+    fprintf(gp, "set nologscale y\n"); // Reset y-axis scale
+    fprintf(gp, "set format y '%%.4f'\n");
+    fprintf(gp, "set ylabel 'Time (seconds)'\n");
+    fprintf(gp, "plot '%s' using 1:4 %s title 'Time Solve (float32)', \\\n", csv_filename, marker_f32);
+    fprintf(gp, "     '' u 1:8 %s title 'Time Solve (float64)'\n\n", marker_f64);
+
+    // Condition Number Calculation Time Plot
+    fprintf(gp, "set output '%s_time_cond.png'\n", plot_base_filepath);
+    fprintf(gp, "set title 'Condition Number Calc Time vs Size (Matrix %s)'\n", matrix_name);
+    // nologscale y, format y, ylabel are already set
+    fprintf(gp, "plot '%s' using 1:5 %s title 'Time Cond (float32)', \\\n", csv_filename, marker_f32);
+    fprintf(gp, "     '' u 1:9 %s title 'Time Cond (float64)'\n\n", marker_f64);
+
+    fclose(gp);
+    printf("Generated Gnuplot script: %s\n", script_filepath);
+}
+
+
+void generate_gnuplot_script_comparison(
+    const char* csv_A_I_filename,  // "data/results_A_I.csv"
+    const char* csv_A_II_filename, // "data/results_A_II.csv"
+    const char* plot_dir,
+    const char* script_dir,
+    int max_n_for_comparison) {
+
+    char script_filepath[256];
+    ensure_directory_exists(plot_dir);
+    ensure_directory_exists(script_dir);
+    sprintf(script_filepath, "%s/plot_cond_comparison.gp", script_dir);
+
+    FILE *gp = fopen(script_filepath, "w");
+    if (gp == NULL) {
+        fprintf(stderr, "Error creating Gnuplot script %s.\n", script_filepath);
+        return;
+    }
+
+    fprintf(gp, "set terminal pngcairo enhanced size 1024,768 font 'Arial,10'\n");
+    fprintf(gp, "set output '%s/cond_comparison.png'\n", plot_dir);
+    fprintf(gp, "set datafile separator ','\n");
+    fprintf(gp, "set title 'Condition Number Comparison (float64, N <= %d)'\n", max_n_for_comparison);
+    fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
+    fprintf(gp, "set ylabel 'Condition Number (log scale)'\n");
+    fprintf(gp, "set logscale y\n");
+    fprintf(gp, "set format y '10^{%%L}'\n");
+    fprintf(gp, "set key top left spacing 1.2\n");
+    fprintf(gp, "set grid\n");
+    fprintf(gp, "set xrange [1.8:%d.2]\n", max_n_for_comparison); // A bit of padding
+
+    // Adjust 'every' to correctly select rows for max_n_for_comparison.
+    // If sizes are 2,3,...,max_n_for_comparison, there are (max_n_for_comparison - 2 + 1) data rows.
+    // Gnuplot's 'every' is 0-indexed for data blocks (after header).
+    // ::1::N means skip 0 rows, plot N rows. We want up to the row corresponding to max_n_for_comparison.
+    // Since sizes start from 2, index in data = size - 2.
+    // So, for max_n_for_comparison, we want up to data row (max_n_for_comparison - 2).
+    // 'every ::0::(max_n_for_comparison - 2)' or simply specifying xrange and not using every might be simpler.
+    // Given xrange is set, 'every' might not be strictly necessary if CSV contains only up to MAX_N_I for A_I.
+    // However, to be safe and handle larger CSVs if they existed:
+    int last_row_index_for_A_I = max_n_for_comparison - 2; // Size 2 is row 0, size 20 is row 18
+
+    fprintf(gp, "plot '%s' using 1:7 every ::0::%d with linespoints pt 7 lc rgb 'orange' title 'Cond Num A_I (float64)', \\\n",
+            csv_A_I_filename, last_row_index_for_A_I );
+    fprintf(gp, "     '%s' using 1:7 every ::0::%d with linespoints pt 6 lc rgb 'green' title 'Cond Num A_II (float64)'\n",
+            csv_A_II_filename, last_row_index_for_A_I ); // A_II also plotted up to same max_n
+
+    fclose(gp);
+    printf("Generated Gnuplot comparison script: %s\n", script_filepath);
+}
+
+static void fprint_latex_sci(FILE* f, double val) {
+    if (isinf(val)) fprintf(f, "\\infty");
+    else if (isnan(val)) fprintf(f, "\\text{NaN}");
+    else fprintf(f, "%.2e", val);
+}
+static void fprint_latex_fixed(FILE* f, double val) {
+     if (isinf(val)) fprintf(f, "\\infty");
+    else if (isnan(val)) fprintf(f, "\\text{NaN}");
+    else fprintf(f, "%.4f", val);
+}
+
+
+void generate_latex_table_individual(
+    const char* base_filename_tex, // e.g., "table_A_I"
+    const ExperimentResult* results_float,
+    const ExperimentResult* results_double,
+    const int* sizes,
+    int num_sizes,
+    const char* matrix_caption_name, // e.g., "$A_I$"
+    bool use_longtable) {
+
     char filepath[256];
-    // Construct the full path: "data/<filename_base>.csv"
-    sprintf(filepath, "data/%s.csv", filename_base);
+    ensure_directory_exists("latex_out");
+    sprintf(filepath, "latex_out/%s.tex", base_filename_tex);
 
-    // Open the CSV file for writing
-    FILE *file = fopen(filepath, "w");
-    if (file == NULL) {
-        // Print error if file opening fails
-        fprintf(stderr, "Error opening file for writing: %s\n", filepath);
+    FILE* f = fopen(filepath, "w");
+    if (!f) {
+        fprintf(stderr, "Error opening LaTeX file %s for writing.\n", filepath);
         return;
     }
 
-    // Write the CSV header
-    fprintf(file, "NumNodes,MaxAbsoluteError,MeanSquaredError\n");
-    // Iterate through the error arrays (indices 0 to maxNodes-2 correspond to n=2 to maxNodes)
-    for (int i = 0; i <= maxNodes - 2; i++) {
-        int n = i + 2; // Current number of nodes
-        fprintf(file, "%d,", n); // Write node count
-
-        // Write Max Absolute Error, handling NaN/Inf
-        if (isnan(errors[i])) fprintf(file, "nan,");
-        else if (isinf(errors[i])) fprintf(file, "inf,");
-        else fprintf(file, "%.10e,", errors[i]); // Format as scientific notation
-
-        // Write Mean Squared Error, handling NaN/Inf
-        if (isnan(mse[i])) fprintf(file, "nan\n");
-        else if (isinf(mse[i])) fprintf(file, "inf\n");
-        else fprintf(file, "%.10e\n", mse[i]); // Format as scientific notation
+    fprintf(f, "%% Generated LaTeX table\n");
+    if (use_longtable) {
+        fprintf(f, "\\begin{longtable}{ccccccccc}\n");
+        fprintf(f, "\\caption{Wyniki dla macierzy %s \\label{tab:%s}} \\\\\n", matrix_caption_name, base_filename_tex);
+        fprintf(f, "\\toprule\n");
+        fprintf(f, "N & Błąd ($\\epsilon_{32}$) & Błąd ($\\epsilon_{64}$) & Wskaźnik ($\\kappa_{32}$) & Wskaźnik ($\\kappa_{64}$) & Czas rozkł. ($t_{s32}$) & Czas rozkł. ($t_{s64}$) & Czas wsk. ($t_{\\kappa32}$) & Czas wsk. ($t_{\\kappa64}$) \\\\\n");
+        fprintf(f, "\\midrule\n");
+        fprintf(f, "\\endfirsthead\n");
+        fprintf(f, "\\caption[]{-- ciąg dalszy.} \\\\\n");
+        fprintf(f, "\\toprule\n");
+        fprintf(f, "N & Błąd ($\\epsilon_{32}$) & Błąd ($\\epsilon_{64}$) & Wskaźnik ($\\kappa_{32}$) & Wskaźnik ($\\kappa_{64}$) & Czas rozkł. ($t_{s32}$) & Czas rozkł. ($t_{s64}$) & Czas wsk. ($t_{\\kappa32}$) & Czas wsk. ($t_{\\kappa64}$) \\\\\n");
+        fprintf(f, "\\midrule\n");
+        fprintf(f, "\\endhead\n");
+        fprintf(f, "\\midrule\n");
+        fprintf(f, "\\multicolumn{9}{r}{\\textit{ciąg dalszy na następnej stronie}} \\\\\n");
+        fprintf(f, "\\endfoot\n");
+        fprintf(f, "\\bottomrule\n");
+        fprintf(f, "\\endlastfoot\n");
+    } else {
+        fprintf(f, "\\begin{table}[htbp]\n");
+        fprintf(f, "\\centering\n");
+        fprintf(f, "\\caption{Wyniki dla macierzy %s \\label{tab:%s}}\n", matrix_caption_name, base_filename_tex);
+        fprintf(f, "\\begin{tabular}{ccccccccc}\n");
+        fprintf(f, "\\toprule\n");
+        fprintf(f, "N & Błąd ($\\epsilon_{32}$) & Błąd ($\\epsilon_{64}$) & Wskaźnik ($\\kappa_{32}$) & Wskaźnik ($\\kappa_{64}$) & Czas rozkł. ($t_{s32}$) & Czas rozkł. ($t_{s64}$) & Czas wsk. ($t_{\\kappa32}$) & Czas wsk. ($t_{\\kappa64}$) \\\\\n");
+        fprintf(f, "\\midrule\n");
     }
 
-    fclose(file); // Close the file
+    for (int i = 0; i < num_sizes; i++) {
+        fprintf(f, "%d & ", sizes[i]);
+        fprint_latex_sci(f, results_float[i].max_abs_error); fprintf(f, " & ");
+        fprint_latex_sci(f, results_double[i].max_abs_error); fprintf(f, " & ");
+        fprint_latex_sci(f, results_float[i].condition_number); fprintf(f, " & ");
+        fprint_latex_sci(f, results_double[i].condition_number); fprintf(f, " & ");
+        fprint_latex_fixed(f, results_float[i].time_solve_sec); fprintf(f, " & ");
+        fprint_latex_fixed(f, results_double[i].time_solve_sec); fprintf(f, " & ");
+        fprint_latex_fixed(f, results_float[i].time_cond_sec); fprintf(f, " & ");
+        fprint_latex_fixed(f, results_double[i].time_cond_sec);
+        fprintf(f, " \\\\\n");
+    }
+
+    if (use_longtable) {
+        fprintf(f, "\\end{longtable}\n");
+    } else {
+        fprintf(f, "\\bottomrule\n");
+        fprintf(f, "\\end{tabular}\n");
+        fprintf(f, "\\end{table}\n");
+    }
+    fclose(f);
+    printf("Generated LaTeX table: %s\n", filepath);
 }
 
 
-/**
- * @brief Generates a Gnuplot script to plot a comparison of maximum spline interpolation errors.
- *
- * Creates 'scripts/plot_spline_errors.gp'. This script, when run, generates
- * 'plots/spline_interpolation_errors.png'.
- * The plot shows the maximum absolute error (log scale) vs. the number of nodes (n=2 to maxNodes)
- * for various spline types (cubic natural, cubic clamped, quadratic clamped, quadratic zero-start)
- * and potentially both uniform and Chebyshev node distributions (Chebyshev part is commented out).
- * Data is embedded directly into the Gnuplot script.
- *
- * @param maxNodes The maximum number of nodes analyzed (plots data for n=2 to maxNodes).
- * @param errors_cubic_natural_uniform Max errors for Cubic Natural Spline, Uniform nodes.
- * @param errors_cubic_clamped_uniform Max errors for Cubic Clamped Spline, Uniform nodes.
- * @param errors_quad_clamped_uniform Max errors for Quadratic Clamped Start Spline, Uniform nodes.
- * @param errors_quad_zero_start_uniform Max errors for Quadratic Zero Start Spline, Uniform nodes.
- * @param errors_cubic_natural_chebyshev (Commented out) Max errors for Cubic Natural Spline, Chebyshev nodes.
- * @param errors_cubic_clamped_chebyshev (Commented out) Max errors for Cubic Clamped Spline, Chebyshev nodes.
- * @param errors_quad_clamped_chebyshev (Commented out) Max errors for Quadratic Clamped Start Spline, Chebyshev nodes.
- * @param errors_quad_zero_start_chebyshev (Commented out) Max errors for Quadratic Zero Start Spline, Chebyshev nodes.
- */
-void generateSplineErrorPlotScript(int maxNodes,
-                                   double errors_cubic_natural_uniform[],
-                                   double errors_cubic_clamped_uniform[],
-                                   double errors_quad_clamped_uniform[],
-                                   double errors_quad_zero_start_uniform[],
-                                   double errors_cubic_natural_chebyshev[],
-                                   double errors_cubic_clamped_chebyshev[],
-                                   double errors_quad_clamped_chebyshev[],
-                                   double errors_quad_zero_start_chebyshev[])
-{
-    // Ensure necessary directories exist
-    ensure_directory_exists("scripts");
-    ensure_directory_exists("plots");
-    char script_path[256];
-    // Construct the script file path
-    sprintf(script_path, "scripts/plot_spline_errors.gp");
+void generate_latex_table_comparison(
+    const char* base_filename_tex, // e.g., "table_cond_compare"
+    const ExperimentResult* results_A_I_double,
+    const ExperimentResult* results_A_II_double,
+    const int* sizes_A_I, int num_sizes_A_I,
+    const int* sizes_A_II, int num_sizes_A_II,
+    int max_n_for_comparison) {
 
-    // Open the Gnuplot script file for writing
-    FILE *gnuplot_script = fopen(script_path, "w");
-    if (gnuplot_script == NULL) {
-        // Print error if file opening fails
-        fprintf(stderr, "Cannot open file %s for writing\n", script_path);
+    char filepath[256];
+    ensure_directory_exists("latex_out");
+    sprintf(filepath, "latex_out/%s.tex", base_filename_tex);
+
+    FILE* f = fopen(filepath, "w");
+    if (!f) {
+        fprintf(stderr, "Error opening LaTeX file %s for writing.\n", filepath);
         return;
     }
 
-    // --- Gnuplot Script Commands ---
-    fprintf(gnuplot_script, "# Gnuplot script to plot spline interpolation errors\n");
-    fprintf(gnuplot_script, "# Generated by generateSplineErrorPlotScript()\n\n");
+    fprintf(f, "%% Generated LaTeX comparison table\n");
+    fprintf(f, "\\begin{table}[htbp]\n");
+    fprintf(f, "\\centering\n");
+    fprintf(f, "\\caption{Porównanie współczynników uwarunkowania $\\kappa(A)$ (float64) dla $N \\le %d$ \\label{tab:%s}}\n", max_n_for_comparison, base_filename_tex);
+    fprintf(f, "\\begin{tabular}{ccc}\n");
+    fprintf(f, "\\toprule\n");
+    fprintf(f, "N & $\\kappa(A_I)$ (float64) & $\\kappa(A_{II})$ (float64) \\\\\n");
+    fprintf(f, "\\midrule\n");
 
-    // Set terminal and output file
-    fprintf(gnuplot_script, "set terminal pngcairo enhanced size 1400,900 font 'Arial,11'\n");
-    fprintf(gnuplot_script, "set output 'plots/spline_interpolation_errors.png'\n");
+    // Iterate through sizes relevant for A_I up to max_n_for_comparison
+    for (int i = 0; i < num_sizes_A_I; i++) {
+        int current_size_A_I = sizes_A_I[i];
+        if (current_size_A_I > max_n_for_comparison) break;
 
-    // Set plot appearance and labels
-    fprintf(gnuplot_script, "set title 'Comparison of Spline Interpolation Errors (Max Absolute Error vs. Nodes)'\n");
-    fprintf(gnuplot_script, "set xlabel 'Number of Nodes (n)'\n");
-    fprintf(gnuplot_script, "set ylabel 'Maximum Absolute Error'\n");
-    fprintf(gnuplot_script, "set grid\n");
-    fprintf(gnuplot_script, "set key top right outside spacing 1.1 title 'Spline Type (Node Type)'\n"); // Key outside, descriptive title
+        fprintf(f, "%d & ", current_size_A_I);
+        fprint_latex_sci(f, results_A_I_double[i].condition_number);
+        fprintf(f, " & ");
 
-    // Set axes scales and format
-    fprintf(gnuplot_script, "set logscale y\n");             // Logarithmic y-axis for errors
-    fprintf(gnuplot_script, "set format y \"10^{%%L}\"\n");    // Scientific notation for y-axis labels
-    fprintf(gnuplot_script, "set xrange [1.8:%d]\n", maxNodes); // X-axis range (starts slightly before n=2)
-    // Optional: Set a minimum y-range if errors become very small
-    // fprintf(gnuplot_script, "set yrange [1e-10:*]\n");
-
-    // Define the plot command using embedded data ('-')
-    // Plot uniform node results first
-    fprintf(gnuplot_script, "plot '-' using 1:2 with linespoints pt 7 lc rgb 'blue' title 'Cubic Nat (Uniform)', \\\n");   // pt 7: circle
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 7 lc rgb 'red' title 'Cubic Clamp (Uniform)', \\\n");
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 6 lc rgb 'green' title 'Quad Clamp (Uniform)', \\\n"); // pt 6: square
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 6 lc rgb 'purple' title 'Quad ZeroSt (Uniform)'"); // Add more lines if Chebyshev is uncommented
-
-    // Uncomment the following lines and the corresponding data embedding below to include Chebyshev results
-    /*
-    fprintf(gnuplot_script, ", \\\n"); // Continue plot command if adding Chebyshev
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 5 lc rgb 'cyan' title 'Cubic Nat (Chebyshev)', \\\n"); // pt 5: triangle
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 5 lc rgb 'orange' title 'Cubic Clamp (Chebyshev)', \\\n");
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'dark-green' title 'Quad Clamp (Chebyshev)', \\\n"); // pt 4: inverted triangle
-    fprintf(gnuplot_script, "     '-' using 1:2 with linespoints pt 4 lc rgb 'magenta' title 'Quad ZeroSt (Chebyshev)'\n");
-    */
-    // If Chebyshev is uncommented, remove the semicolon from the last uniform line above and add one here.
-    // If only uniform is plotted, end the plot command here.
-     fprintf(gnuplot_script, "\n\n"); // End plot command if only uniform is plotted
-
-    // --- Embed Data for Each Plot Series ---
-    // Data for Uniform nodes (4 series)
-    fprintf(gnuplot_script, "# Data for Cubic Natural (Uniform)\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_cubic_natural_uniform[i]) && !isinf(errors_cubic_natural_uniform[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_cubic_natural_uniform[i]);
-    fprintf(gnuplot_script, "e\n"); // Gnuplot end-of-data marker
-
-    fprintf(gnuplot_script, "# Data for Cubic Clamped (Uniform)\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_cubic_clamped_uniform[i]) && !isinf(errors_cubic_clamped_uniform[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_cubic_clamped_uniform[i]);
-    fprintf(gnuplot_script, "e\n");
-
-    fprintf(gnuplot_script, "# Data for Quadratic Clamped (Uniform)\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_quad_clamped_uniform[i]) && !isinf(errors_quad_clamped_uniform[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_quad_clamped_uniform[i]);
-    fprintf(gnuplot_script, "e\n");
-
-    fprintf(gnuplot_script, "# Data for Quadratic Zero Start (Uniform)\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_quad_zero_start_uniform[i]) && !isinf(errors_quad_zero_start_uniform[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_quad_zero_start_uniform[i]);
-    fprintf(gnuplot_script, "e\n");
-
-
-    // Uncomment the following blocks to embed data for Chebyshev nodes
-    /*
-    fprintf(gnuplot_script, "# Data for Cubic Natural (Chebyshev)\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_cubic_natural_chebyshev[i]) && !isinf(errors_cubic_natural_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_cubic_natural_chebyshev[i]);
-    fprintf(gnuplot_script, "e\n");
-
-    fprintf(gnuplot_script, "# Data for Cubic Clamped (Chebyshev)\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_cubic_clamped_chebyshev[i]) && !isinf(errors_cubic_clamped_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_cubic_clamped_chebyshev[i]);
-    fprintf(gnuplot_script, "e\n");
-
-    fprintf(gnuplot_script, "# Data for Quadratic Clamped (Chebyshev)\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_quad_clamped_chebyshev[i]) && !isinf(errors_quad_clamped_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_quad_clamped_chebyshev[i]);
-    fprintf(gnuplot_script, "e\n");
-
-    fprintf(gnuplot_script, "# Data for Quadratic Zero Start (Chebyshev)\n");
-    for (int i = 0; i <= maxNodes - 2; i++) if (!isnan(errors_quad_zero_start_chebyshev[i]) && !isinf(errors_quad_zero_start_chebyshev[i])) fprintf(gnuplot_script, "%d %e\n", i + 2, errors_quad_zero_start_chebyshev[i]);
-    fprintf(gnuplot_script, "e\n");
-    */
-
-    // --- End of Gnuplot Script ---
-    fclose(gnuplot_script); // Close the script file
-    printf("Generated Gnuplot error comparison script: %s\n", script_path); // Confirmation message
-}
-
-/**
- * @brief Generates a Gnuplot script to plot individual spline interpolation results.
- *
- * Creates 'scripts/plot_spline_interpolation.gp'. This script, when run, generates
- * multiple PNG files in the 'plots/' directory. Each PNG file shows the original function,
- * the spline interpolation for a specific type (e.g., cubic natural), node distribution
- * (e.g., uniform), and number of nodes (n), along with the interpolation nodes.
- * Loops through n=2 to `maxNodes`. Includes commands for uniform nodes; commands for
- * Chebyshev nodes are present but commented out.
- *
- * @param maxNodes The maximum number of nodes for which plots should be generated (plots for n=2 to maxNodes).
- */
-void generateSplineGnuplotScript(int maxNodes) {
-    // Ensure necessary directories exist
-    ensure_directory_exists("scripts");
-    ensure_directory_exists("plots");
-    char script_path[256];
-    // Construct the script file path
-    sprintf(script_path, "scripts/plot_spline_interpolation.gp");
-
-    // Open the Gnuplot script file for writing
-    FILE *gnuplot_script = fopen(script_path, "w");
-    if (gnuplot_script == NULL) {
-        // Print error if file opening fails
-        fprintf(stderr, "Cannot open file %s for writing\n", script_path);
-        return;
+        // Find corresponding A_II result
+        bool found_A_II = false;
+        for (int j = 0; j < num_sizes_A_II; j++) {
+            if (sizes_A_II[j] == current_size_A_I) {
+                fprint_latex_sci(f, results_A_II_double[j].condition_number);
+                found_A_II = true;
+                break;
+            }
+        }
+        if (!found_A_II) {
+            fprintf(f, "---"); // Or some placeholder if A_II doesn't have this size
+        }
+        fprintf(f, " \\\\\n");
     }
 
-    // --- Gnuplot Script Header and Common Settings ---
-    fprintf(gnuplot_script, "# Gnuplot script to plot individual spline interpolations\n");
-    fprintf(gnuplot_script, "# Generated by generateSplineGnuplotScript()\n\n");
+    fprintf(f, "\\bottomrule\n");
+    fprintf(f, "\\end{tabular}\n");
+    fprintf(f, "\\end{table}\n");
 
-    // Set terminal type and default plot appearance
-    fprintf(gnuplot_script, "set terminal pngcairo enhanced size 1200,800 font 'Arial,12'\n");
-    fprintf(gnuplot_script, "set grid\n");
-    fprintf(gnuplot_script, "set key top left outside\n"); // Position legend outside plot area
-    fprintf(gnuplot_script, "set xlabel 'x'\n");
-    fprintf(gnuplot_script, "set ylabel 'f(x)'\n");
-    // Set x-range based on global constants 'a' and 'b'
-    fprintf(gnuplot_script, "set xrange [%.4f:%.4f]\n", a, b);
-    // Set a fixed y-range for consistency across plots (adjust if needed)
-    fprintf(gnuplot_script, "set yrange [-15:15]\n");
-
-    fprintf(gnuplot_script, "\n# --- Individual Spline Interpolation Plots (n=2 to %d) ---\n", maxNodes);
-
-    // --- Loop through number of nodes (n=2 to maxNodes) ---
-    for (int n = 2; n <= maxNodes; n++) {
-
-        // --- Plots for Uniform Nodes ---
-        fprintf(gnuplot_script, "\n# --- n=%d, Uniform Nodes ---\n", n);
-
-        // Plot: Cubic Natural Spline (Uniform Nodes)
-        fprintf(gnuplot_script, "set output 'plots/cubic_natural_uniform_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Cubic Spline (n=%d, Natural BC, Uniform Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original f(x)', \\\n"); // Original function
-        fprintf(gnuplot_script, "     'data/cubic_natural_uniform_n%d.dat' with lines lw 2 lc 'blue' title 'Cubic Spline (Natural)', \\\n", n); // Interpolated spline
-        fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n); // Interpolation nodes (pt 7: circle)
-
-        // Plot: Cubic Clamped Spline (Uniform Nodes)
-        fprintf(gnuplot_script, "set output 'plots/cubic_clamped_uniform_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Cubic Spline (n=%d, Clamped BC, Uniform Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original f(x)', \\\n");
-        fprintf(gnuplot_script, "     'data/cubic_clamped_uniform_n%d.dat' with lines lw 2 lc 'red' title 'Cubic Spline (Clamped)', \\\n", n);
-        fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n);
-
-        // Plot: Quadratic Clamped Start Spline (Uniform Nodes)
-        fprintf(gnuplot_script, "set output 'plots/quadratic_clamped_uniform_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Quadratic Spline (n=%d, Clamped Start BC, Uniform Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original f(x)', \\\n");
-        fprintf(gnuplot_script, "     'data/quadratic_clamped_uniform_n%d.dat' with lines lw 2 lc 'green' title 'Quadratic Spline (Clamped Start)', \\\n", n);
-        fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n);
-
-        // Plot: Quadratic Zero Start Derivative Spline (Uniform Nodes)
-        fprintf(gnuplot_script, "set output 'plots/quadratic_zero_start_uniform_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Quadratic Spline (n=%d, Zero Start Derivative BC, Uniform Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original f(x)', \\\n");
-        fprintf(gnuplot_script, "     'data/quadratic_zero_start_uniform_n%d.dat' with lines lw 2 lc 'purple' title 'Quadratic Spline (Zero Start Deriv.)', \\\n", n);
-        fprintf(gnuplot_script, "     'data/uniform_nodes_n%d.dat' with points pt 7 ps 1.5 lc 'black' title 'Nodes'\n", n);
-
-
-        // --- Plots for Chebyshev Nodes (Commented Out) ---
-        // Uncomment the following section to generate plots for Chebyshev nodes as well.
-        /*
-        fprintf(gnuplot_script, "\n# --- n=%d, Chebyshev Nodes ---\n", n);
-
-        // Plot: Cubic Natural Spline (Chebyshev Nodes)
-        fprintf(gnuplot_script, "set output 'plots/cubic_natural_chebyshev_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Cubic Spline (n=%d, Natural BC, Chebyshev Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original f(x)', \\\n");
-        fprintf(gnuplot_script, "     'data/cubic_natural_chebyshev_n%d.dat' with lines lw 2 lc 'cyan' title 'Cubic Spline (Natural)', \\\n", n);
-        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 5 ps 1.5 lc 'black' title 'Nodes'\n", n); // pt 5: triangle
-
-        // Plot: Cubic Clamped Spline (Chebyshev Nodes)
-        fprintf(gnuplot_script, "set output 'plots/cubic_clamped_chebyshev_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Cubic Spline (n=%d, Clamped BC, Chebyshev Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original f(x)', \\\n");
-        fprintf(gnuplot_script, "     'data/cubic_clamped_chebyshev_n%d.dat' with lines lw 2 lc 'orange' title 'Cubic Spline (Clamped)', \\\n", n);
-        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 5 ps 1.5 lc 'black' title 'Nodes'\n", n);
-
-        // Plot: Quadratic Clamped Start Spline (Chebyshev Nodes)
-        fprintf(gnuplot_script, "set output 'plots/quadratic_clamped_chebyshev_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Quadratic Spline (n=%d, Clamped Start BC, Chebyshev Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original f(x)', \\\n");
-        fprintf(gnuplot_script, "     'data/quadratic_clamped_chebyshev_n%d.dat' with lines lw 2 lc 'dark-green' title 'Quadratic Spline (Clamped Start)', \\\n", n);
-        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 5 ps 1.5 lc 'black' title 'Nodes'\n", n);
-
-        // Plot: Quadratic Zero Start Derivative Spline (Chebyshev Nodes)
-        fprintf(gnuplot_script, "set output 'plots/quadratic_zero_start_chebyshev_n%d.png'\n", n);
-        fprintf(gnuplot_script, "set title \"Quadratic Spline (n=%d, Zero Start Derivative BC, Chebyshev Nodes)\"\n", n);
-        fprintf(gnuplot_script, "plot 'data/original_function.dat' with lines lw 2 lc 'black' title 'Original f(x)', \\\n");
-        fprintf(gnuplot_script, "     'data/quadratic_zero_start_chebyshev_n%d.dat' with lines lw 2 lc 'magenta' title 'Quadratic Spline (Zero Start Deriv.)', \\\n", n);
-        fprintf(gnuplot_script, "     'data/chebyshev_nodes_n%d.dat' with points pt 5 ps 1.5 lc 'black' title 'Nodes'\n", n);
-        */
-
-    } // End loop over n
-
-    // --- End of Gnuplot Script ---
-    fclose(gnuplot_script); // Close the script file
-    printf("Generated Gnuplot individual interpolation script: %s\n", script_path); // Confirmation message
+    fclose(f);
+    printf("Generated LaTeX comparison table: %s\n", filepath);
 }

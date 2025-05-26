@@ -1,36 +1,51 @@
-/**
-* @file common.h
- * @brief Common header file for includes, constants, and definitions.
- *
- * Includes standard libraries and defines project-wide constants
- * like the interval [a, b], function parameters, and maximum node count.
- */
 #ifndef COMMON_H
 #define COMMON_H
 
-#include <stdio.h>  // Standard input/output functions
-#include <stdlib.h> // Standard library functions (malloc, exit, etc.)
-#include <math.h>   // Mathematical functions (sin, exp, fabs, etc.)
-#include <stdbool.h> // For boolean types
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+#include <stdbool.h>
+#include <float.h>
+#include <time.h>
 
-// Maximum number of interpolation nodes allowed.
-// Note: Splines require at least 2 nodes.
-#define MAX_NODES 500
+// Global constants
+#define FIXED_SEED 30
+#define MAX_N_I 20
+#define MAX_M_II 200
 
-// External declaration of global constants defined in function.c
-extern const double PI; // Mathematical constant Pi
-extern const double k;  // Parameter 'k' for the function f(x)
-extern const double m;  // Parameter 'm' for the function f(x)
-extern const double a;  // Start of the interpolation interval
-extern const double b;  // End of the interpolation interval
+// Matrix Structure
+typedef struct {
+    double **data; // Always use double for matrix data internally for robustness during setup
+    int rows;
+    int cols;
+} Matrix;
 
-// Enum to define different boundary condition types for splines
-typedef enum {
-    BOUNDARY_NATURAL,       // Natural spline (cubic): S''(a)=0, S''(b)=0
-    BOUNDARY_CLAMPED,       // Clamped spline (cubic/quadratic): S'(a)=f'(a), S'(b)=f'(b) (cubic) or S'(a)=f'(a) (quadratic)
-    BOUNDARY_ZERO_SLOPE_START // Quadratic spline specific: S'(a)=0
-    // Add other conditions here if needed, e.g., BOUNDARY_PERIODIC
-} BoundaryConditionType;
+// Vector Structure
+typedef struct {
+    double *data; // Always use double for vector data
+    int size;
+} Vector;
 
+// Experiment Result Structure
+typedef struct {
+    int size;
+    double max_abs_error;    // Store as double, format on output
+    double condition_number; // Store as double
+    double time_solve_sec;
+    double time_cond_sec;
+} ExperimentResult;
+
+// Utility Macro for memory allocation checking
+#define CHECK_ALLOC(ptr, msg) \
+do { \
+if (!(ptr)) { \
+fprintf(stderr, "Error: Memory allocation failed for %s in %s at line %d.\n", msg, __FILE__, __LINE__); \
+exit(EXIT_FAILURE); \
+} \
+} while (0)
+
+// Define an epsilon for comparisons, can be type-specific if needed
+#define DEFAULT_EPS DBL_EPSILON // General purpose epsilon
 
 #endif // COMMON_H

@@ -1,102 +1,98 @@
-# Compiler and flags
 CC = gcc
-# Flags: -Wall (all warnings), -Wextra (more warnings), -O3 (optimization), -Iinclude (find headers), -g (debugging symbols)
-# -Wno-unused-parameter: Suppress warnings about unused deriv_a/b in spline calls when BC doesn't need them.
-# -lm: Link math library
-CFLAGS = -Wall -Wextra -O3 -Iinclude -g -Wno-unused-parameter
-LDFLAGS = -lm
+# CFLAGS for general compilation
+CFLAGS_BASE = -Wall -Wextra -Iinclude -g
+CFLAGS_OPT = -O2 # Or -O3
+CFLAGS = $(CFLAGS_BASE) $(CFLAGS_OPT) -std=c99 # Specify C standard
+LDFLAGS = -lm # Link math library
 
-# Directories (using variables for consistency)
+# Directories
 SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
 DATA_DIR = data
 PLOTS_DIR = plots
 SCRIPT_DIR = scripts
-INCLUDE_DIR = include # Define include directory
+LATEX_DIR = latex_out
+INCLUDE_DIR = include
 
-# Source and object files
-# Automatically find all .c files in SRC_DIR
+# Source and object files (automatically find all .c and .h files)
 SOURCES = $(wildcard $(SRC_DIR)/*.c)
-# Replace src/%.c with obj/%.o for each source file
 OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SOURCES))
-# Define the executable path
-EXECUTABLE = $(BIN_DIR)/spline_interpolator # Changed executable name
-
-# Header files (for dependency tracking)
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
+EXECUTABLE = $(BIN_DIR)/lab_gauss_solver
 
-# Default rule: Build the executable
+.PHONY: all directories run plots tables clean distclean help
+
+# Default rule
 all: directories $(EXECUTABLE)
 
-# Rule to create necessary directories
-# Use $@ to refer to the target name (directories)
 directories:
 	@echo "Creating directories..."
-	@mkdir -p $(OBJ_DIR) $(BIN_DIR) $(DATA_DIR) $(PLOTS_DIR) $(SCRIPT_DIR)
+	@mkdir -p $(OBJ_DIR) $(BIN_DIR) $(DATA_DIR) $(PLOTS_DIR) $(SCRIPT_DIR) $(LATEX_DIR)
 
-# --- Pattern Rule for Compiling Object Files ---
-# This rule tells make how to create any .o file in OBJ_DIR
-# from its corresponding .c file in SRC_DIR.
+# Rule to compile object files
 # $<: The first prerequisite (the .c file).
 # $@: The target file (the .o file).
-# It automatically handles dependencies on the .c file.
-# We add $(HEADERS) as prerequisites to ensure recompilation if any header changes.
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c $(HEADERS)
 	@echo "Compiling $< -> $@"
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Link the program
+# Rule to link the executable
 # $^: All prerequisites (all object files).
 $(EXECUTABLE): $(OBJECTS)
-	@echo "Linking object files -> $@"
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	@echo "Linking $^ -> $@"
+	$(CC) $(OBJECTS) -o $@ $(LDFLAGS)
 
-# Run the program
 run: all
-	@echo "Running program $(EXECUTABLE)..."
-	@./$(EXECUTABLE)
+	@echo "Running $(EXECUTABLE)..."
+	./$(EXECUTABLE)
 	@echo "Program finished."
 
-# Generate plots (depends on running the program first to create data/scripts)
 plots: run
 	@echo "Generating plots using Gnuplot..."
-	@gnuplot "$(SCRIPT_DIR)/plot_spline_interpolation.gp" && echo "Generated individual plots." || echo "Gnuplot failed for individual plots."
-	@gnuplot "$(SCRIPT_DIR)/plot_spline_errors.gp" && echo "Generated error summary plot." || echo "Gnuplot failed for error plot."
-	@echo "--- Generated Files ---"
-	@echo "CSV error files in $(DATA_DIR):"
-	@ls -1 $(DATA_DIR)/*_errors.csv 2>/dev/null || echo "  (No CSV files found)"
-	@echo "Plot files in $(PLOTS_DIR):"
-	@ls -1 $(PLOTS_DIR)/*.png 2>/dev/null || echo "  (No PNG files found)"
-	@echo "-----------------------"
-	@echo "Plot generation attempt finished."
+	@if [ -f "$(SCRIPT_DIR)/plot_A_I.gp" ]; then \
+		gnuplot "$(SCRIPT_DIR)/plot_A_I.gp" && echo "  Generated plots for A_I." || echo "  Gnuplot failed for A_I plots."; \
+	else \
+		echo "  Skipping A_I plots: script not found."; \
+	fi
+	@if [ -f "$(SCRIPT_DIR)/plot_A_II.gp" ]; then \
+		gnuplot "$(SCRIPT_DIR)/plot_A_II.gp" && echo "  Generated plots for A_II." || echo "  Gnuplot failed for A_II plots."; \
+	else \
+		echo "  Skipping A_II plots: script not found."; \
+	fi
+	@if [ -f "$(SCRIPT_DIR)/plot_cond_comparison.gp" ]; then \
+		gnuplot "$(SCRIPT_DIR)/plot_cond_comparison.gp" && echo "  Generated condition number comparison plot." || echo "  Gnuplot failed for comparison plot."; \
+	else \
+		echo "  Skipping comparison plot: script not found."; \
+	fi
+	@echo "Plot generation finished. Check $(PLOTS_DIR)/ directory."
 
+tables: run
+	@echo "LaTeX tables generated in $(LATEX_DIR)/ directory by the C program."
+	@echo "Please compile them with a LaTeX distribution (e.g., pdflatex)."
+	@echo "Example: pdflatex your_main_report.tex (assuming you \\input the tables)"
 
-# Clean temporary files (object files, executable) and generated output
 clean:
 	@echo "Cleaning temporary and generated files..."
 	rm -f $(OBJ_DIR)/*.o
 	rm -f $(EXECUTABLE)
-	rm -f $(DATA_DIR)/*.dat $(DATA_DIR)/*.csv
+	rm -f $(DATA_DIR)/*.csv
 	rm -f $(PLOTS_DIR)/*.png
 	rm -f $(SCRIPT_DIR)/*.gp
+	rm -f $(LATEX_DIR)/*.tex
 	@echo "Cleaning finished."
 
-# Deep clean (remove generated directories too)
 distclean: clean
 	@echo "Removing all generated directories..."
-	rm -rf $(OBJ_DIR) $(BIN_DIR) $(DATA_DIR) $(PLOTS_DIR) $(SCRIPT_DIR)
-	@echo "Deep cleaning finished."
+	rm -rf $(OBJ_DIR) $(BIN_DIR) $(DATA_DIR) $(PLOTS_DIR) $(SCRIPT_DIR) $(LATEX_DIR)
+	@echo "Distclean finished."
 
-# Help message
 help:
 	@echo "Available commands:"
-	@echo "  make all       - Compiles the program '$(EXECUTABLE)' (default)"
-	@echo "  make run       - Compiles and runs the program"
-	@echo "  make plots     - Compiles, runs the program, and generates plots and CSV files"
-	@echo "  make clean     - Removes object files, executable, scripts, and generated data/plots"
-	@echo "  make distclean - Performs 'clean' and removes generated directories"
-	@echo "  make help      - Displays this help message"
-
-# Declare phony targets (targets that are not files)
-.PHONY: all directories run plots clean distclean help
+	@echo "  make all        - Compiles the program (default)"
+	@echo "  make run        - Compiles and runs the program (generates CSVs, Gnuplot scripts, LaTeX tables)"
+	@echo "  make plots      - Compiles, runs, and then executes Gnuplot scripts"
+	@echo "  make tables     - Compiles and runs (tables are generated by the C program)"
+	@echo "  make clean      - Removes object files, executable, and all generated output files"
+	@echo "  make distclean  - Performs 'clean' and removes generated directories"
+	@echo "  make help       - Displays this help message"
