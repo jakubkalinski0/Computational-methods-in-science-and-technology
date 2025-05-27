@@ -1,6 +1,8 @@
-#include "fileio.h" // Changed from output_gen.h
+#include "fileio.h"
 #include <sys/stat.h> // For mkdir (POSIX)
 #include <errno.h>    // For errno
+#include <string.h>   // Potrzebne dla strcmp
+#include <math.h>     // Potrzebne dla isinf, isnan
 
 #ifdef _WIN32
 #include <direct.h> // For _mkdir (Windows)
@@ -15,18 +17,18 @@ void ensure_directory_exists(const char* path) {
     ret = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 #endif
     if (ret == 0) {
-        // printf("Directory created: %s\n", path); // Optional: uncomment for verbose output
+        // printf("Katalog utworzony: %s\n", path); // Opcjonalnie: odkomentuj dla pełnego logowania
     } else if (errno == EEXIST) {
-        // Directory already exists, which is fine.
+        // Katalog już istnieje, co jest w porządku.
     } else {
-        fprintf(stderr, "Error creating directory %s: %s\n", path, strerror(errno));
-        // Decide if this is a fatal error for your application
+        fprintf(stderr, "Błąd tworzenia katalogu %s: %s\n", path, strerror(errno));
+        // Zdecyduj, czy to błąd krytyczny dla aplikacji
     }
 }
 
 
 void save_results_to_csv(
-    const char* base_filename, // e.g., "results_A_I"
+    const char* base_filename, // np. "results_A_I"
     const ExperimentResult* results_float,
     const ExperimentResult* results_double,
     const int* sizes,
@@ -38,7 +40,7 @@ void save_results_to_csv(
 
     FILE *f = fopen(filepath, "w");
     if (f == NULL) {
-        fprintf(stderr, "Error opening file %s for writing.\n", filepath);
+        fprintf(stderr, "Błąd otwierania pliku %s do zapisu.\n", filepath);
         return;
     }
 
@@ -54,81 +56,195 @@ void save_results_to_csv(
                 results_double[i].time_solve_sec, results_double[i].time_cond_sec);
     }
     fclose(f);
-    printf("Results saved to %s\n", filepath);
+    printf("Wyniki zapisano do %s\n", filepath);
 }
 
 
-void generate_gnuplot_script_individual(
-    const char* csv_filename, // Full path to CSV, e.g., "data/results_A_I.csv"
-    const char* matrix_name,  // e.g., "A_I" or "A_II"
-    const char* plot_dir,     // e.g., "plots"
-    const char* script_dir,   // e.g., "scripts"
-    bool is_A_II) {
+// --- Funkcja generująca skrypt Gnuplot dla Macierzy A_I ---
+void generate_gnuplot_script_A_I(
+    const char* csv_filename, // np. "data/results_A_I.csv"
+    const char* plot_dir,     // np. "plots"
+    const char* script_dir) { // np. "scripts"
 
     char script_filepath[256];
     char plot_base_filepath[256];
+    const char* matrix_name = "A_I";
 
     ensure_directory_exists(plot_dir);
     ensure_directory_exists(script_dir);
 
     sprintf(script_filepath, "%s/plot_%s.gp", script_dir, matrix_name);
-    // Plot files will be named like "plots/A_I_error.png", "plots/A_I_cond.png", etc.
     sprintf(plot_base_filepath, "%s/%s", plot_dir, matrix_name);
-
 
     FILE *gp = fopen(script_filepath, "w");
     if (gp == NULL) {
-        fprintf(stderr, "Error creating Gnuplot script %s.\n", script_filepath);
+        fprintf(stderr, "Błąd tworzenia skryptu Gnuplot %s.\n", script_filepath);
         return;
     }
 
+    fprintf(gp, "# Plik: %s\n", script_filepath);
+    fprintf(gp, "# Skrypt Gnuplot dla wyników macierzy %s\n\n", matrix_name);
+
     fprintf(gp, "set terminal pngcairo enhanced size 1024,768 font 'Arial,10'\n");
     fprintf(gp, "set datafile separator ','\n");
-    fprintf(gp, "set key top right spacing 1.2\n");
+    fprintf(gp, "set key top left spacing 1.2\n"); // Legenda w prawym górnym rogu dla A_I
     fprintf(gp, "set grid\n\n");
 
-    const char* marker_f32 = is_A_II ? "with lines lc rgb 'blue'" : "with linespoints pt 7 lc rgb 'blue'"; // circle
-    const char* marker_f64 = is_A_II ? "with lines lc rgb 'red'" : "with linespoints pt 6 lc rgb 'red'";   // square
+    fprintf(gp, "# Wartość zastępująca zero na wykresie logarytmicznym błędów\n");
+    const char* error_zero_replacement_val_str = "1e-18"; // Dla A_I błędy mogą być bardzo różne
+    fprintf(gp, "error_zero_replacement = %s\n", error_zero_replacement_val_str);
+    fprintf(gp, "replace_error_zero(col_val) = (col_val == 0.0 ? error_zero_replacement : col_val)\n\n");
 
+    const char* plot_style_f32 = "with linespoints pt 7 lc rgb 'blue'";
+    const char* plot_style_f64 = "with linespoints pt 6 lc rgb 'red'";
 
-    // Max Absolute Error Plot
+    fprintf(gp, "# --- Wykres maksymalnego błędu absolutnego ---\n");
     fprintf(gp, "set output '%s_error.png'\n", plot_base_filepath);
     fprintf(gp, "set title 'Max Absolute Error vs Size (Matrix %s)'\n", matrix_name);
     fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
+    fprintf(gp, "set xrange [1:21]\n");
     fprintf(gp, "set ylabel 'Max Absolute Error (log scale)'\n");
     fprintf(gp, "set logscale y\n");
     fprintf(gp, "set format y '10^{%%L}'\n");
-    fprintf(gp, "plot '%s' using 1:2 %s title 'Error (float32)', \\\n", csv_filename, marker_f32);
-    fprintf(gp, "     '' u 1:6 %s title 'Error (float64)'\n\n", marker_f64);
+    fprintf(gp, "set yrange [error_zero_replacement/10 : *]\n\n");
+    fprintf(gp, "plot '%s' using 1:(replace_error_zero(column(2))) %s title 'Error (float32)', \\\n", csv_filename, plot_style_f32);
+    fprintf(gp, "     '' using 1:(replace_error_zero(column(6))) %s title 'Error (float64)'\n\n\n", plot_style_f64);
 
-    // Condition Number Plot
+    fprintf(gp, "# --- Wykres współczynnika uwarunkowania ---\n");
     fprintf(gp, "set output '%s_cond.png'\n", plot_base_filepath);
     fprintf(gp, "set title 'Condition Number vs Size (Matrix %s)'\n", matrix_name);
+    fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
+    fprintf(gp, "set xrange [1:21]\n");
     fprintf(gp, "set ylabel 'Condition Number (log scale)'\n");
-    // logscale y and format y are already set
-    fprintf(gp, "plot '%s' using 1:3 %s title 'Cond Num (float32)', \\\n", csv_filename, marker_f32);
-    fprintf(gp, "     '' u 1:7 %s title 'Cond Num (float64)'\n\n", marker_f64);
+    fprintf(gp, "set logscale y\n"); // Upewnij się, że jest log dla tego wykresu
+    fprintf(gp, "set format y '10^{%%L}'\n"); // Upewnij się, że format jest log dla tego wykresu
+    fprintf(gp, "set yrange [*:*]\n\n");
+    fprintf(gp, "plot '%s' using 1:3 %s title 'Cond Num (float32)', \\\n", csv_filename, plot_style_f32);
+    fprintf(gp, "     '' u 1:7 %s title 'Cond Num (float64)'\n\n\n", plot_style_f64);
 
-    // Solve Time Plot
+    fprintf(gp, "# --- Wykres czasu rozwiązywania ---\n");
     fprintf(gp, "set output '%s_time_solve.png'\n", plot_base_filepath);
     fprintf(gp, "set title 'Solve Time vs Size (Matrix %s)'\n", matrix_name);
-    fprintf(gp, "set nologscale y\n"); // Reset y-axis scale
-    fprintf(gp, "set format y '%%.4f'\n");
+    fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
+    fprintf(gp, "set xrange [1:21]\n");
+    fprintf(gp, "set nologscale y\n");
+    fprintf(gp, "set format y '%%.6f'\n"); // Format dla małych czasów A_I
     fprintf(gp, "set ylabel 'Time (seconds)'\n");
-    fprintf(gp, "plot '%s' using 1:4 %s title 'Time Solve (float32)', \\\n", csv_filename, marker_f32);
-    fprintf(gp, "     '' u 1:8 %s title 'Time Solve (float64)'\n\n", marker_f64);
+    fprintf(gp, "set yrange [0:*]\n");
+    fprintf(gp, "set ytics auto\n\n"); // Specyficzne ytics dla A_I
+    fprintf(gp, "plot '%s' using 1:4 %s title 'Time Solve (float32)', \\\n", csv_filename, plot_style_f32);
+    fprintf(gp, "     '' u 1:8 %s title 'Time Solve (float64)'\n\n\n", plot_style_f64);
 
-    // Condition Number Calculation Time Plot
+    fprintf(gp, "# --- Wykres czasu obliczania współczynnika uwarunkowania ---\n");
     fprintf(gp, "set output '%s_time_cond.png'\n", plot_base_filepath);
     fprintf(gp, "set title 'Condition Number Calc Time vs Size (Matrix %s)'\n", matrix_name);
-    // nologscale y, format y, ylabel are already set
-    fprintf(gp, "plot '%s' using 1:5 %s title 'Time Cond (float32)', \\\n", csv_filename, marker_f32);
-    fprintf(gp, "     '' u 1:9 %s title 'Time Cond (float64)'\n\n", marker_f64);
+    fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
+    fprintf(gp, "set xrange [1:21]\n");
+    fprintf(gp, "set nologscale y\n"); // Upewnij się
+    fprintf(gp, "set format y '%%.6f'\n"); // Upewnij się
+    fprintf(gp, "set ylabel 'Time (seconds)'\n"); // Upewnij się
+    fprintf(gp, "set yrange [0:*]\n"); // Upewnij się
+    fprintf(gp, "set ytics auto\n\n"); // Specyficzne ytics dla A_I
+    fprintf(gp, "plot '%s' using 1:5 %s title 'Time Cond (float32)', \\\n", csv_filename, plot_style_f32);
+    fprintf(gp, "     '' u 1:9 %s title 'Time Cond (float64)'\n\n\n", plot_style_f64);
 
+    fprintf(gp, "print \"Generated plots for %s.\"\n", matrix_name);
     fclose(gp);
-    printf("Generated Gnuplot script: %s\n", script_filepath);
+    printf("Wygenerowano skrypt Gnuplot: %s\n", script_filepath);
 }
 
+// --- Funkcja generująca skrypt Gnuplot dla Macierzy A_II ---
+void generate_gnuplot_script_A_II(
+    const char* csv_filename, // np. "data/results_A_II.csv"
+    const char* plot_dir,     // np. "plots"
+    const char* script_dir) { // np. "scripts"
+
+    char script_filepath[256];
+    char plot_base_filepath[256];
+    const char* matrix_name = "A_II";
+
+    ensure_directory_exists(plot_dir);
+    ensure_directory_exists(script_dir);
+
+    sprintf(script_filepath, "%s/plot_%s.gp", script_dir, matrix_name);
+    sprintf(plot_base_filepath, "%s/%s", plot_dir, matrix_name);
+
+    FILE *gp = fopen(script_filepath, "w");
+    if (gp == NULL) {
+        fprintf(stderr, "Błąd tworzenia skryptu Gnuplot %s.\n", script_filepath);
+        return;
+    }
+
+    fprintf(gp, "# Plik: %s\n", script_filepath);
+    fprintf(gp, "# Skrypt Gnuplot dla wyników macierzy %s\n\n", matrix_name);
+
+    fprintf(gp, "set terminal pngcairo enhanced size 1024,768 font 'Arial,10'\n");
+    fprintf(gp, "set datafile separator ','\n");
+    fprintf(gp, "set key top left spacing 1.2\n"); // Legenda w lewym górnym rogu dla A_II (lub inna preferencja)
+    fprintf(gp, "set grid\n\n");
+
+    fprintf(gp, "# Wartość zastępująca zero na wykresie logarytmicznym błędów\n");
+    const char* error_zero_replacement_val_str = "1e-18"; // Dla A_II błędy są zwykle małe
+    fprintf(gp, "error_zero_replacement = %s\n", error_zero_replacement_val_str);
+    fprintf(gp, "replace_error_zero(col_val) = (col_val == 0.0 ? error_zero_replacement : col_val)\n\n");
+
+    const char* plot_style_f32 = "with lines lc rgb 'blue'"; // Dla A_II bez punktów
+    const char* plot_style_f64 = "with lines lc rgb 'red'";  // Dla A_II bez punktów
+
+    fprintf(gp, "# --- Wykres maksymalnego błędu absolutnego ---\n");
+    fprintf(gp, "set output '%s_error.png'\n", plot_base_filepath);
+    fprintf(gp, "set title 'Max Absolute Error vs Size (Matrix %s)'\n", matrix_name);
+    fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
+    fprintf(gp, "set xrange [1:201]\n");
+    fprintf(gp, "set ylabel 'Max Absolute Error (log scale)'\n");
+    fprintf(gp, "set logscale y\n");
+    fprintf(gp, "set format y '10^{%%L}'\n");
+    fprintf(gp, "set yrange [error_zero_replacement/10 : *]\n\n");
+    fprintf(gp, "plot '%s' using 1:(replace_error_zero(column(2))) %s title 'Error (float32)', \\\n", csv_filename, plot_style_f32);
+    fprintf(gp, "     '' using 1:(replace_error_zero(column(6))) %s title 'Error (float64)'\n\n\n", plot_style_f64);
+
+    fprintf(gp, "# --- Wykres współczynnika uwarunkowania ---\n");
+    fprintf(gp, "set output '%s_cond.png'\n", plot_base_filepath);
+    fprintf(gp, "set title 'Condition Number vs Size (Matrix %s)'\n", matrix_name);
+    fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
+    fprintf(gp, "set xrange [1:201]\n");
+    fprintf(gp, "set ylabel 'Condition Number (log scale)'\n");
+    fprintf(gp, "set logscale y\n");
+    fprintf(gp, "set format y '10^{%%L}'\n");
+    fprintf(gp, "set yrange [*:*]\n\n");
+    fprintf(gp, "plot '%s' using 1:3 %s title 'Cond Num (float32)', \\\n", csv_filename, plot_style_f32);
+    fprintf(gp, "     '' u 1:7 %s title 'Cond Num (float64)'\n\n\n", plot_style_f64);
+
+    fprintf(gp, "# --- Wykres czasu rozwiązywania ---\n");
+    fprintf(gp, "set output '%s_time_solve.png'\n", plot_base_filepath);
+    fprintf(gp, "set title 'Solve Time vs Size (Matrix %s)'\n", matrix_name);
+    fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
+    fprintf(gp, "set xrange [1:201]\n");
+    fprintf(gp, "set nologscale y\n");
+    fprintf(gp, "set format y '%%.3f'\n"); // Format dla czasów A_II (mogą być większe)
+    fprintf(gp, "set ylabel 'Time (seconds)'\n");
+    fprintf(gp, "set yrange [-0.001:*]\n");
+    fprintf(gp, "set ytics auto\n\n"); // Automatyczne ytics dla A_II
+    fprintf(gp, "plot '%s' using 1:4 %s title 'Time Solve (float32)', \\\n", csv_filename, plot_style_f32);
+    fprintf(gp, "     '' u 1:8 %s title 'Time Solve (float64)'\n\n\n", plot_style_f64);
+
+    fprintf(gp, "# --- Wykres czasu obliczania współczynnika uwarunkowania ---\n");
+    fprintf(gp, "set output '%s_time_cond.png'\n", plot_base_filepath);
+    fprintf(gp, "set title 'Condition Number Calc Time vs Size (Matrix %s)'\n", matrix_name);
+    fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
+    fprintf(gp, "set xrange [1:201]\n");
+    fprintf(gp, "set nologscale y\n");
+    fprintf(gp, "set format y '%%.3f'\n");
+    fprintf(gp, "set ylabel 'Time (seconds)'\n");
+    fprintf(gp, "set yrange [-0.002:*]\n");
+    fprintf(gp, "set ytics auto\n\n"); // Automatyczne ytics dla A_II
+    fprintf(gp, "plot '%s' using 1:5 %s title 'Time Cond (float32)', \\\n", csv_filename, plot_style_f32);
+    fprintf(gp, "     '' u 1:9 %s title 'Time Cond (float64)'\n\n\n", plot_style_f64);
+
+    fprintf(gp, "print \"Generated plots for %s.\"\n", matrix_name);
+    fclose(gp);
+    printf("Wygenerowano skrypt Gnuplot: %s\n", script_filepath);
+}
 
 void generate_gnuplot_script_comparison(
     const char* csv_A_I_filename,  // "data/results_A_I.csv"
@@ -144,7 +260,7 @@ void generate_gnuplot_script_comparison(
 
     FILE *gp = fopen(script_filepath, "w");
     if (gp == NULL) {
-        fprintf(stderr, "Error creating Gnuplot script %s.\n", script_filepath);
+        fprintf(stderr, "Błąd tworzenia skryptu Gnuplot %s.\n", script_filepath);
         return;
     }
 
@@ -158,26 +274,17 @@ void generate_gnuplot_script_comparison(
     fprintf(gp, "set format y '10^{%%L}'\n");
     fprintf(gp, "set key top left spacing 1.2\n");
     fprintf(gp, "set grid\n");
-    fprintf(gp, "set xrange [1.8:%d.2]\n", max_n_for_comparison); // A bit of padding
+    fprintf(gp, "set xrange [1:%d]\n", max_n_for_comparison+1);
 
-    // Adjust 'every' to correctly select rows for max_n_for_comparison.
-    // If sizes are 2,3,...,max_n_for_comparison, there are (max_n_for_comparison - 2 + 1) data rows.
-    // Gnuplot's 'every' is 0-indexed for data blocks (after header).
-    // ::1::N means skip 0 rows, plot N rows. We want up to the row corresponding to max_n_for_comparison.
-    // Since sizes start from 2, index in data = size - 2.
-    // So, for max_n_for_comparison, we want up to data row (max_n_for_comparison - 2).
-    // 'every ::0::(max_n_for_comparison - 2)' or simply specifying xrange and not using every might be simpler.
-    // Given xrange is set, 'every' might not be strictly necessary if CSV contains only up to MAX_N_I for A_I.
-    // However, to be safe and handle larger CSVs if they existed:
-    int last_row_index_for_A_I = max_n_for_comparison - 2; // Size 2 is row 0, size 20 is row 18
+    int last_row_index_for_comparison = max_n_for_comparison - 1;
 
     fprintf(gp, "plot '%s' using 1:7 every ::0::%d with linespoints pt 7 lc rgb 'orange' title 'Cond Num A_I (float64)', \\\n",
-            csv_A_I_filename, last_row_index_for_A_I );
+            csv_A_I_filename, last_row_index_for_comparison );
     fprintf(gp, "     '%s' using 1:7 every ::0::%d with linespoints pt 6 lc rgb 'green' title 'Cond Num A_II (float64)'\n",
-            csv_A_II_filename, last_row_index_for_A_I ); // A_II also plotted up to same max_n
+            csv_A_II_filename, last_row_index_for_comparison );
 
     fclose(gp);
-    printf("Generated Gnuplot comparison script: %s\n", script_filepath);
+    printf("Wygenerowano skrypt Gnuplot porównawczy: %s\n", script_filepath);
 }
 
 static void fprint_latex_sci(FILE* f, double val) {
@@ -193,12 +300,12 @@ static void fprint_latex_fixed(FILE* f, double val) {
 
 
 void generate_latex_table_individual(
-    const char* base_filename_tex, // e.g., "table_A_I"
+    const char* base_filename_tex,
     const ExperimentResult* results_float,
     const ExperimentResult* results_double,
     const int* sizes,
     int num_sizes,
-    const char* matrix_caption_name, // e.g., "$A_I$"
+    const char* matrix_caption_name,
     bool use_longtable) {
 
     char filepath[256];
@@ -207,11 +314,11 @@ void generate_latex_table_individual(
 
     FILE* f = fopen(filepath, "w");
     if (!f) {
-        fprintf(stderr, "Error opening LaTeX file %s for writing.\n", filepath);
+        fprintf(stderr, "Błąd otwierania pliku LaTeX %s do zapisu.\n", filepath);
         return;
     }
 
-    fprintf(f, "%% Generated LaTeX table\n");
+    fprintf(f, "%% Wygenerowana tabela LaTeX\n");
     if (use_longtable) {
         fprintf(f, "\\begin{longtable}{ccccccccc}\n");
         fprintf(f, "\\caption{Wyniki dla macierzy %s \\label{tab:%s}} \\\\\n", matrix_caption_name, base_filename_tex);
@@ -260,12 +367,12 @@ void generate_latex_table_individual(
         fprintf(f, "\\end{table}\n");
     }
     fclose(f);
-    printf("Generated LaTeX table: %s\n", filepath);
+    printf("Wygenerowano tabelę LaTeX: %s\n", filepath);
 }
 
 
 void generate_latex_table_comparison(
-    const char* base_filename_tex, // e.g., "table_cond_compare"
+    const char* base_filename_tex,
     const ExperimentResult* results_A_I_double,
     const ExperimentResult* results_A_II_double,
     const int* sizes_A_I, int num_sizes_A_I,
@@ -278,11 +385,11 @@ void generate_latex_table_comparison(
 
     FILE* f = fopen(filepath, "w");
     if (!f) {
-        fprintf(stderr, "Error opening LaTeX file %s for writing.\n", filepath);
+        fprintf(stderr, "Błąd otwierania pliku LaTeX %s do zapisu.\n", filepath);
         return;
     }
 
-    fprintf(f, "%% Generated LaTeX comparison table\n");
+    fprintf(f, "%% Wygenerowana tabela LaTeX porównawcza\n");
     fprintf(f, "\\begin{table}[htbp]\n");
     fprintf(f, "\\centering\n");
     fprintf(f, "\\caption{Porównanie współczynników uwarunkowania $\\kappa(A)$ (float64) dla $N \\le %d$ \\label{tab:%s}}\n", max_n_for_comparison, base_filename_tex);
@@ -291,7 +398,6 @@ void generate_latex_table_comparison(
     fprintf(f, "N & $\\kappa(A_I)$ (float64) & $\\kappa(A_{II})$ (float64) \\\\\n");
     fprintf(f, "\\midrule\n");
 
-    // Iterate through sizes relevant for A_I up to max_n_for_comparison
     for (int i = 0; i < num_sizes_A_I; i++) {
         int current_size_A_I = sizes_A_I[i];
         if (current_size_A_I > max_n_for_comparison) break;
@@ -300,7 +406,6 @@ void generate_latex_table_comparison(
         fprint_latex_sci(f, results_A_I_double[i].condition_number);
         fprintf(f, " & ");
 
-        // Find corresponding A_II result
         bool found_A_II = false;
         for (int j = 0; j < num_sizes_A_II; j++) {
             if (sizes_A_II[j] == current_size_A_I) {
@@ -310,7 +415,7 @@ void generate_latex_table_comparison(
             }
         }
         if (!found_A_II) {
-            fprintf(f, "---"); // Or some placeholder if A_II doesn't have this size
+            fprintf(f, "---");
         }
         fprintf(f, " \\\\\n");
     }
@@ -320,5 +425,5 @@ void generate_latex_table_comparison(
     fprintf(f, "\\end{table}\n");
 
     fclose(f);
-    printf("Generated LaTeX comparison table: %s\n", filepath);
+    printf("Wygenerowano tabelę LaTeX porównawczą: %s\n", filepath);
 }
