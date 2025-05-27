@@ -1,17 +1,4 @@
 #include "matrix_utils.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h> // For memset
-#include <float.h>  // For DBL_MAX, FLT_MAX etc.
-
-// Helper for casting based on precision_dtype string
-static double cast_to_precision(double val, const char* precision_dtype) {
-    if (strcmp(precision_dtype, "float") == 0) {
-        return (float)val;
-    }
-    return val; // double
-}
-
 
 Matrix* create_matrix(int rows, int cols) {
     Matrix *m = (Matrix*)malloc(sizeof(Matrix));
@@ -21,9 +8,8 @@ Matrix* create_matrix(int rows, int cols) {
     m->data = (double**)malloc(rows * sizeof(double*));
     CHECK_ALLOC(m->data, "Matrix data rows");
     for (int i = 0; i < rows; i++) {
-        m->data[i] = (double*)malloc(cols * sizeof(double));
+        m->data[i] = (double*)calloc(cols, sizeof(double)); // Initialize to zero
         CHECK_ALLOC(m->data[i], "Matrix data columns");
-        memset(m->data[i], 0, cols * sizeof(double)); // Initialize to zero
     }
     return m;
 }
@@ -51,14 +37,12 @@ Matrix* copy_matrix(const Matrix* src) {
     return dest;
 }
 
-
 Vector* create_vector(int size) {
     Vector *v = (Vector*)malloc(sizeof(Vector));
     CHECK_ALLOC(v, "Vector structure");
     v->size = size;
-    v->data = (double*)malloc(size * sizeof(double));
+    v->data = (double*)calloc(size, sizeof(double)); // Initialize to zero
     CHECK_ALLOC(v->data, "Vector data");
-    memset(v->data, 0, size * sizeof(double)); // Initialize to zero
     return v;
 }
 
@@ -69,83 +53,80 @@ void free_vector(Vector *v) {
     }
 }
 
-void generate_matrix_I(Matrix *A, int n, const char* precision_dtype) {
+void generate_A_tridiagonal_full(Matrix *A, int n, double m_param, double k_param, const char* precision_dtype) {
+    // Assumes A is already allocated and zeroed out
     for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            if (i == 0 || j == 0) {
-                A->data[i][j] = cast_to_precision(1.0, precision_dtype);
-            } else {
-                // Using 0-based indexing (i, j) for C, corresponds to (i+1, j+1) in 1-based formula
-                // Formula: 1 / ( (row_1_based) + (col_1_based) - 1 )
-                //  = 1 / ( (i+1) + (j+1) - 1 ) = 1 / (i+j+1)
-                A->data[i][j] = cast_to_precision(1.0 / ((double)i + (double)j + 1.0), precision_dtype);
-            }
+        A->data[i][i] = cast_to_prec(-m_param * (i + 1.0) - k_param, precision_dtype);
+        if (i + 1 < n) {
+            A->data[i][i+1] = cast_to_prec((double)(i + 1.0), precision_dtype);
+        }
+        if (i > 0) {
+            A->data[i][i-1] = cast_to_prec(m_param / (double)(i + 1.0), precision_dtype);
         }
     }
 }
 
-void generate_matrix_II(Matrix *A, int m, const char* precision_dtype) {
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < m; j++) {
-            // Using 0-based indexing (i, j) for C
-            // Formula: a_rc = 2*r_1_based / c_1_based for c_1_based >= r_1_based
-            // r_1_based = i+1, c_1_based = j+1
-            if (j >= i) { // Equivalent to (j+1) >= (i+1)
-                A->data[i][j] = cast_to_precision((2.0 * ((double)i + 1.0)) / ((double)j + 1.0), precision_dtype);
-            } else {
-                A->data[i][j] = A->data[j][i]; // Symmetric
-            }
-        }
-    }
-}
-
-void generate_x_true(Vector *x, int size, int current_matrix_size) {
-    // Seed depends on current_matrix_size to match Python behavior where RandomState was re-initialized
-    unsigned int seed = FIXED_SEED + current_matrix_size;
-    srand(seed); // Seed the random number generator
-
-    for (int i = 0; i < size; i++) {
-        // rand() / RAND_MAX gives a float in [0,1]
-        if ((double)rand() / RAND_MAX < 0.5) {
-            x->data[i] = 1.0;
+void generate_A_tridiagonal_banded(Matrix *A_banded, int n, double m_param, double k_param, const char* precision_dtype) {
+    // A_banded is nx3: col 0 = lower, col 1 = main, col 2 = upper
+    for (int i = 0; i < n; i++) {
+        if (i > 0) {
+            A_banded->data[i][0] = cast_to_prec(m_param / (double)(i + 1.0), precision_dtype);
         } else {
-            x->data[i] = -1.0;
+            A_banded->data[i][0] = cast_to_prec(0.0, precision_dtype);
+        }
+        A_banded->data[i][1] = cast_to_prec(-m_param * (i + 1.0) - k_param, precision_dtype);
+        if (i < n - 1) {
+            A_banded->data[i][2] = cast_to_prec((double)(i + 1.0), precision_dtype);
+        } else {
+            A_banded->data[i][2] = cast_to_prec(0.0, precision_dtype);
         }
     }
 }
 
-void matrix_vector_mult(const Matrix *A, const Vector *x, Vector *b, const char* precision_dtype) {
-    if (A->cols != x->size || A->rows != b->size) {
-        fprintf(stderr, "Error: Matrix/vector dimension mismatch for multiplication.\n");
-        return;
-    }
-    for (int i = 0; i < A->rows; i++) {
-        double sum = 0.0;
-        for (int j = 0; j < A->cols; j++) {
-            // Perform multiplication in double, then cast if needed
-            sum += A->data[i][j] * x->data[j];
-        }
-        b->data[i] = cast_to_precision(sum, precision_dtype);
+void generate_x_true(Vector *x, int n_size) {
+    srand(FIXED_SEED);
+    for (int i = 0; i < n_size; i++) {
+        x->data[i] = ((double)rand() / RAND_MAX < 0.5) ? 1.0 : -1.0;
     }
 }
 
-double matrix_norm_1(const Matrix *A, const char* precision_dtype) {
-    double max_col_sum = 0.0;
-    bool is_float = (strcmp(precision_dtype, "float") == 0);
-
-    for (int j = 0; j < A->cols; j++) {
-        double current_col_sum = 0.0;
-        for (int i = 0; i < A->rows; i++) {
-            double val = A->data[i][j];
-            if (is_float) val = (float)val; // consider value at specified precision
-
-            if (isinf(val) || isnan(val)) return INFINITY; // Propagate Inf/NaN
-            current_col_sum += fabs(val);
-            if (is_float) current_col_sum = (float)current_col_sum; // Keep sum at precision
+void matrix_vector_mult_full(const Matrix *A_full, const Vector *x, Vector *b, const char* precision_dtype) {
+    for (int i = 0; i < A_full->rows; i++) {
+        double sum_val = 0.0;
+        for (int j = 0; j < A_full->cols; j++) {
+            sum_val += A_full->data[i][j] * x->data[j];
         }
-        if (current_col_sum > max_col_sum) {
-            max_col_sum = current_col_sum;
+        b->data[i] = cast_to_prec(sum_val, precision_dtype);
+    }
+}
+
+void matrix_vector_mult_banded(const Matrix *A_banded, const Vector *x, Vector *b, const char* precision_dtype) {
+    int n = A_banded->rows;
+    for (int i = 0; i < n; i++) {
+        double sum_val = 0.0;
+        if (i > 0) {
+            sum_val += A_banded->data[i][0] * x->data[i-1];
+        }
+        sum_val += A_banded->data[i][1] * x->data[i];
+        if (i < n - 1) {
+            sum_val += A_banded->data[i][2] * x->data[i+1];
+        }
+        b->data[i] = cast_to_prec(sum_val, precision_dtype);
+    }
+}
+
+double calculate_max_abs_error(const Vector *v_computed, const Vector *v_true, const char* precision_dtype) {
+    double max_err = 0.0;
+    for (int i = 0; i < v_computed->size; i++) {
+        double val_true_at_prec = cast_to_prec(v_true->data[i], precision_dtype);
+        if (isinf(v_computed->data[i]) || isnan(v_computed->data[i])) return INFINITY;
+
+        double err = fabs(v_computed->data[i] - val_true_at_prec);
+        err = cast_to_prec(err, precision_dtype);
+
+        if (err > max_err) {
+            max_err = err;
         }
     }
-    return cast_to_precision(max_col_sum, precision_dtype);
+    return isfinite(max_err) ? max_err : INFINITY;
 }

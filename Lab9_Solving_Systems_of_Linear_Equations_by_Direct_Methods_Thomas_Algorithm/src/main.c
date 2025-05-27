@@ -1,67 +1,55 @@
 #include "common.h"
-#include "matrix_utils.h"
 #include "experiment.h"
 #include "fileio.h"
-#include <stdio.h>
 
 int main() {
-    // --- Setup for Matrix A_I ---
-    int sizes_A_I[MAX_N_I - 1];
-    int num_sizes_A_I = 0;
-    for (int n = 2; n <= MAX_N_I; n++) {
-        sizes_A_I[num_sizes_A_I++] = n;
-    }
-    ExperimentResult* results_A_I_float = (ExperimentResult*)malloc(num_sizes_A_I * sizeof(ExperimentResult));
-    ExperimentResult* results_A_I_double = (ExperimentResult*)malloc(num_sizes_A_I * sizeof(ExperimentResult));
-    CHECK_ALLOC(results_A_I_float, "results_A_I_float");
-    CHECK_ALLOC(results_A_I_double, "results_A_I_double");
+    printf("Starting Tridiagonal Solver Experiments (m=%.1f, k=%.1f)\n", M_PARAM, K_PARAM);
 
-    run_experiments_for_matrix("A_I", generate_matrix_I, sizes_A_I, num_sizes_A_I, results_A_I_float, results_A_I_double);
-    save_results_to_csv("results_A_I", results_A_I_float, results_A_I_double, sizes_A_I, num_sizes_A_I);
-    // Zmienione wywołanie:
-    generate_gnuplot_script_A_I("data/results_A_I.csv", "plots", "scripts");
-    generate_latex_table_individual("table_A_I", results_A_I_float, results_A_I_double, sizes_A_I, num_sizes_A_I, "$A_I$", false);
-
-    // --- Setup for Matrix A_II ---
-    int sizes_A_II[MAX_M_II -1];
-    int num_sizes_A_II = 0;
-    for (int m = 2; m <= MAX_M_II; m++) {
-        sizes_A_II[num_sizes_A_II++] = m;
+    int n_values_count = N_MAX - N_MIN + 1;
+    int* n_sizes_for_exp = (int*)malloc(n_values_count * sizeof(int));
+    CHECK_ALLOC(n_sizes_for_exp, "N sizes array for experiments");
+    for (int i = 0; i < n_values_count; ++i) {
+        n_sizes_for_exp[i] = N_MIN + i;
     }
 
-    ExperimentResult* results_A_II_float = NULL;
-    ExperimentResult* results_A_II_double = NULL;
+    ExperimentResult* all_results = (ExperimentResult*)malloc(n_values_count * sizeof(ExperimentResult));
+    CHECK_ALLOC(all_results, "Main results array");
 
-    if (num_sizes_A_II > 0) {
-        results_A_II_float = (ExperimentResult*)malloc(num_sizes_A_II * sizeof(ExperimentResult));
-        results_A_II_double = (ExperimentResult*)malloc(num_sizes_A_II * sizeof(ExperimentResult));
-        CHECK_ALLOC(results_A_II_float, "results_A_II_float");
-        CHECK_ALLOC(results_A_II_double, "results_A_II_double");
+    run_all_experiments(n_sizes_for_exp, n_values_count, all_results);
 
-        run_experiments_for_matrix("A_II", generate_matrix_II, sizes_A_II, num_sizes_A_II, results_A_II_float, results_A_II_double);
-        save_results_to_csv("results_A_II", results_A_II_float, results_A_II_double, sizes_A_II, num_sizes_A_II);
-        // Zmienione wywołanie:
-        generate_gnuplot_script_A_II("data/results_A_II.csv", "plots", "scripts");
-        generate_latex_table_individual("table_A_II", results_A_II_float, results_A_II_double, sizes_A_II, num_sizes_A_II, "$A_{II}$", true);
+    char filename_base[100];
+    sprintf(filename_base, "tridiag_m%.0f_k%.0f_results", M_PARAM, K_PARAM);
 
-        generate_gnuplot_script_comparison("data/results_A_I.csv", "data/results_A_II.csv", "plots", "scripts", MAX_N_I);
-        generate_latex_table_comparison("table_cond_compare",
-                                        results_A_I_double, results_A_II_double,
-                                        sizes_A_I, num_sizes_A_I,
-                                        sizes_A_II, num_sizes_A_II,
-                                        MAX_N_I);
-    } else {
-        printf("Skipping A_II experiments as MAX_M_II (%d) is too small for any sizes.\n", MAX_M_II);
-    }
+    save_results_to_csv(filename_base, all_results, n_sizes_for_exp, n_values_count);
 
-    free(results_A_I_float);
-    free(results_A_I_double);
-    if (results_A_II_float) free(results_A_II_float);
-    if (results_A_II_double) free(results_A_II_double);
+    char csv_full_path[128];
+    sprintf(csv_full_path, "data/%s.csv", filename_base);
 
-    printf("\nAll experiments complete. Output generated in data/, plots/, scripts/, latex_out/ directories.\n");
-    printf("To generate plots, run Gnuplot on scripts in 'scripts/' directory (e.g., gnuplot scripts/plot_A_I.gp).\n");
-    printf("Alternatively, use 'make plots' or 'make tables'.\n");
+    char gnuplot_script_base[100];
+    sprintf(gnuplot_script_base, "plot_tridiag_m%.0f_k%.0f", M_PARAM, K_PARAM);
+    char plot_file_base[100];
+    sprintf(plot_file_base, "tridiag_m%.0f_k%.0f", M_PARAM, K_PARAM);
+
+    generate_gnuplot_script(csv_full_path, gnuplot_script_base, plot_file_base, N_MAX);
+
+    char latex_table_base[100];
+    sprintf(latex_table_base, "table_tridiag_m%.0f_k%.0f", M_PARAM, K_PARAM);
+    generate_latex_table(latex_table_base, all_results, n_sizes_for_exp, n_values_count, false); // Short table
+
+    // For a long table, you can call it again with a different filename suffix and true
+    // char latex_table_base_long[110];
+    // sprintf(latex_table_base_long, "%s_long", latex_table_base);
+    // generate_latex_table(latex_table_base_long, all_results, n_sizes_for_exp, n_values_count, true);
+
+
+    free(n_sizes_for_exp);
+    free(all_results);
+
+    printf("\nProcessing complete.\n");
+    printf("CSV data in: data/\n");
+    printf("Gnuplot scripts in: scripts/ (run e.g., `gnuplot scripts/%s.gp`)\n", gnuplot_script_base);
+    printf("Plots will be generated in: plots/\n");
+    printf("LaTeX tables in: latex_out/\n");
 
     return 0;
 }

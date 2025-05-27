@@ -9,43 +9,71 @@
 #include <float.h>
 #include <time.h>
 
-// Global constants
-#define FIXED_SEED 30
-#define MAX_N_I 20
-#define MAX_M_II 200
+// ----- Task Specific Constants -----
+#define M_PARAM 4.0
+#define K_PARAM 5.0
+#define N_MIN 2
+#define N_MAX 500
+#define FIXED_SEED 30 // Seed for generating x_true
 
-// Matrix Structure
+// ----- Core Structures -----
 typedef struct {
-    double **data; // Always use double for matrix data internally for robustness during setup
+    double **data;
     int rows;
     int cols;
 } Matrix;
 
-// Vector Structure
 typedef struct {
-    double *data; // Always use double for vector data
+    double *data;
     int size;
 } Vector;
 
-// Experiment Result Structure
+// ----- Experiment Result Structure -----
 typedef struct {
-    int size;
-    double max_abs_error;    // Store as double, format on output
-    double condition_number; // Store as double
-    double time_solve_sec;
-    double time_cond_sec;
+    int size_n; // N
+
+    // Gaussian Elimination (Full Matrix)
+    double err_gauss_f32;
+    double time_gauss_f32_sec;
+    double err_gauss_f64;
+    double time_gauss_f64_sec;
+
+    // Thomas Algorithm (Banded Matrix nx3)
+    double err_thomas_f32;
+    double time_thomas_f32_sec;
+    double err_thomas_f64;
+    double time_thomas_f64_sec;
+
+    // Theoretical Memory for Matrix A storage (in KB)
+    double mem_gauss_f32_kb;
+    double mem_thomas_f32_kb;
+    double mem_gauss_f64_kb;
+    double mem_thomas_f64_kb;
 } ExperimentResult;
 
-// Utility Macro for memory allocation checking
+// ----- Utility Macros -----
 #define CHECK_ALLOC(ptr, msg) \
 do { \
 if (!(ptr)) { \
-fprintf(stderr, "Error: Memory allocation failed for %s in %s at line %d.\n", msg, __FILE__, __LINE__); \
+fprintf(stderr, "ERROR: Memory allocation failed for %s in %s at line %d.\n", msg, __FILE__, __LINE__); \
 exit(EXIT_FAILURE); \
 } \
 } while (0)
 
-// Define an epsilon for comparisons, can be type-specific if needed
-#define DEFAULT_EPS DBL_EPSILON // General purpose epsilon
+// Helper for casting values to specified precision
+static inline double cast_to_prec(double val, const char* precision_dtype) {
+    if (strcmp(precision_dtype, "float") == 0) {
+        return (float)val;
+    }
+    return val; // double
+}
+
+// Helper for getting precision-specific epsilon
+static inline double get_prec_epsilon(const char* precision_dtype) {
+    if (strcmp(precision_dtype, "float") == 0) {
+        return FLT_EPSILON;
+    }
+    return DBL_EPSILON;
+}
 
 #endif // COMMON_H
