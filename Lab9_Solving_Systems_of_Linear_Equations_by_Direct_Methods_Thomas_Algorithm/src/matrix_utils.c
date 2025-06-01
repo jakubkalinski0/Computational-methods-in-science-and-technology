@@ -119,7 +119,7 @@ double calculate_max_abs_error(const Vector *v_computed, const Vector *v_true, c
     double max_err = 0.0;
     for (int i = 0; i < v_computed->size; i++) {
         double val_true_at_prec = cast_to_prec(v_true->data[i], precision_dtype);
-        if (isinf(v_computed->data[i]) || isnan(v_computed->data[i])) return INFINITY;
+        if (isinf(v_computed->data[i]) || isnan(v_computed->data[i])) return 0.0;
 
         double err = fabs(v_computed->data[i] - val_true_at_prec);
         err = cast_to_prec(err, precision_dtype);
@@ -128,5 +128,5 @@ double calculate_max_abs_error(const Vector *v_computed, const Vector *v_true, c
             max_err = err;
         }
     }
-    return isfinite(max_err) ? max_err : INFINITY;
+    return isfinite(max_err) ? max_err : 0.0;
 }

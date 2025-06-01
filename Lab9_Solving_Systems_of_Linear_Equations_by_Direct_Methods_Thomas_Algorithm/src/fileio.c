@@ -16,7 +16,6 @@ static void fprint_latex_fixed(FILE* f, double val, int precision) {
 void save_results_to_csv(
     const char* csv_filename_base,
     const ExperimentResult* results_array,
-    const int* n_sizes_arr,
     int num_n_values) {
 
     char filepath[256];
@@ -29,7 +28,7 @@ void save_results_to_csv(
         return;
     }
 
-    fprintf(f, "# Results: Tridiagonal Matrix (m=%.1f, k=%.1f)\n", M_PARAM, K_PARAM);
+    fprintf(f, "Tridiagonal Matrix (m=%.1f, k=%.1f)\n", M_PARAM, K_PARAM);
     fprintf(f, "N_Size,Err_G_f32,Time_G_f32,Err_T_f32,Time_T_f32,");
     fprintf(f, "Err_G_f64,Time_G_f64,Err_T_f64,Time_T_f64,");
     fprintf(f, "Mem_G_f32_KB,Mem_T_f32_KB,Mem_G_f64_KB,Mem_T_f64_KB\n");
@@ -80,9 +79,13 @@ void generate_gnuplot_script(
     fprintf(gp, "set grid\n");
     fprintf(gp, "set xrange [1:%d]\n\n", max_n_for_plots);
 
-    fprintf(gp, "error_zero_replacement = 1e-18\n");
-    fprintf(gp, "replace_infnan(col_val) = (isinf(col_val) || isnan(col_val) ? 1/0.0 : col_val)\n");
-    fprintf(gp, "replace_error_val(col_val) = (col_val == 0.0 ? error_zero_replacement : (isinf(col_val) || isnan(col_val) ? 1e18 : col_val) )\n\n");
+    fprintf(gp, "# Helper functions for plotting\n");
+    const char* error_zero_replacement_val_str = "1e-18";
+    fprintf(gp, "error_zero_replacement = %s\n", error_zero_replacement_val_str);
+    fprintf(gp, "replace_error_val(col_val) = (col_val == 0.0 ? error_zero_replacement : col_val)\n");
+
+    fprintf(gp, "min_plot_log_val = 1e-7\n");
+    fprintf(gp, "handle_log_val(v) = (v > 0 && v == v && v != 1.0/0.0 && v != -1.0/0.0 ? v : min_plot_log_val)\n\n");
 
 
     fprintf(gp, "set output '%s_error.png'\n", plot_base);
@@ -103,11 +106,13 @@ void generate_gnuplot_script(
     fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
     fprintf(gp, "set logscale y\n");
     fprintf(gp, "set format y '10^{%%L}'\n");
-    fprintf(gp, "set yrange [1e-6 : *]\n");
-    fprintf(gp, "plot '%s' skip 1 u 1:(replace_infnan(column(3))) w lp pt 7 lc 'blue' t 'Gauss Time (f32)', \\\n", csv_filepath);
-    fprintf(gp, "     '' skip 1 u 1:(replace_infnan(column(5))) w lp pt 6 lc 'cyan' t 'Thomas Time (f32)', \\\n");
-    fprintf(gp, "     '' skip 1 u 1:(replace_infnan(column(7))) w lp pt 5 lc 'red' t 'Gauss Time (f64)', \\\n");
-    fprintf(gp, "     '' skip 1 u 1:(replace_infnan(column(9))) w lp pt 4 lc 'magenta' t 'Thomas Time (f64)'\n\n");
+    // Provide a sensible upper bound for time if auto-scaling fails for all-min values.
+    // Max time for N=500 is ~0.1s. Max N_MAX could be larger. 1000s is very safe.
+    fprintf(gp, "set yrange [min_plot_log_val : 1000]\n");
+    fprintf(gp, "plot '%s' skip 1 u 1:(handle_log_val(column(3))) w lp pt 7 lc 'blue' t 'Gauss Time (f32)', \\\n", csv_filepath);
+    fprintf(gp, "     '' skip 1 u 1:(handle_log_val(column(5))) w lp pt 6 lc 'cyan' t 'Thomas Time (f32)', \\\n");
+    fprintf(gp, "     '' skip 1 u 1:(handle_log_val(column(7))) w lp pt 5 lc 'red' t 'Gauss Time (f64)', \\\n");
+    fprintf(gp, "     '' skip 1 u 1:(handle_log_val(column(9))) w lp pt 4 lc 'magenta' t 'Thomas Time (f64)'\n\n");
 
     fprintf(gp, "set output '%s_memory.png'\n", plot_base);
     fprintf(gp, "set title 'Theoretical Matrix A Storage vs Size (Tridiagonal, m=%.1f, k=%.1f)'\n", M_PARAM, K_PARAM);
@@ -115,11 +120,19 @@ void generate_gnuplot_script(
     fprintf(gp, "set xlabel 'Matrix Size (N)'\n");
     fprintf(gp, "set logscale y\n");
     fprintf(gp, "set format y '10^{%%L}'\n");
-    fprintf(gp, "set yrange [*:*]\n");
-    fprintf(gp, "plot '%s' skip 1 u 1:(replace_infnan(column(10))) w l lc 'blue' t 'Gauss Mem (f32)', \\\n", csv_filepath);
-    fprintf(gp, "     '' skip 1 u 1:(replace_infnan(column(11))) w l lc 'cyan' t 'Thomas Mem (f32)', \\\n");
-    fprintf(gp, "     '' skip 1 u 1:(replace_infnan(column(12))) w l lc 'red' t 'Gauss Mem (f64)', \\\n");
-    fprintf(gp, "     '' skip 1 u 1:(replace_infnan(column(13))) w l lc 'magenta' t 'Thomas Mem (f64)'\n\n");
+    // Smallest memory (N=2, Thomas) is ~0.02KB. Largest (N=500, Gauss) is ~2000KB.
+    // min_plot_log_val (1e-7) is much smaller than actual minimum memory.
+    // Set yrange from a realistic minimum memory (e.g. 0.01KB) up to a realistic maximum (e.g. 10MB = 10000KB).
+    // Using handle_log_val will map any truly problematic CSV values to 1e-7, which will be off-scale low.
+    // This is better than "all points undefined" if the actual data is fine.
+    // Smallest actual memory for N=2, 3cols, float: 2*3*4/1024 = 0.023 KB.
+    // Max N=500, 500cols, double: 500*500*8/1024 = 1953 KB.
+    // So a range like [0.01 : 10000] should be fine.
+    fprintf(gp, "set yrange [0.01 : 10000]\n");
+    fprintf(gp, "plot '%s' skip 1 u 1:(handle_log_val(column(10))) w l lc 'blue' t 'Gauss Mem (f32)', \\\n", csv_filepath);
+    fprintf(gp, "     '' skip 1 u 1:(handle_log_val(column(11))) w l lc 'cyan' t 'Thomas Mem (f32)', \\\n");
+    fprintf(gp, "     '' skip 1 u 1:(handle_log_val(column(12))) w l lc 'red' t 'Gauss Mem (f64)', \\\n");
+    fprintf(gp, "     '' skip 1 u 1:(handle_log_val(column(13))) w l lc 'magenta' t 'Thomas Mem (f64)'\n\n");
 
     fclose(gp);
     printf("Generated Gnuplot script: %s\n", script_path);
@@ -129,13 +142,12 @@ void generate_gnuplot_script(
 void generate_latex_table(
     const char* latex_filename_base,
     const ExperimentResult* results_array,
-    const int* n_sizes_arr,
     int num_n_values,
     bool use_longtable) {
 
     char filepath[256];
     ensure_dir_exists("latex_out");
-    sprintf(filepath, "latex_out/%s.tex", latex_filename_base);
+    sprintf(filepath, "latex_out/%s.txt", latex_filename_base);
 
     FILE* f = fopen(filepath, "w");
     if (!f) {
@@ -144,7 +156,6 @@ void generate_latex_table(
     }
 
     fprintf(f, "%% LaTeX table for Tridiagonal Matrix (m=%.1f, k=%.1f)\n", M_PARAM, K_PARAM);
-    const char* table_env = use_longtable ? "longtable" : "tabular";
     const char* caption_label_format = use_longtable ?
         "\\caption{Wyniki dla macierzy trójdiagonalnej ($m=%.1f, k=%.1f$) \\label{tab:%s}} \\\\" :
         "\\caption{Wybrane wyniki dla macierzy trójdiagonalnej ($m=%.1f, k=%.1f$) \\label{tab:%s}}";

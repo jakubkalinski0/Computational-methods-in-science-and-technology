@@ -24,7 +24,6 @@ static inline void ensure_dir_exists(const char* path) {
 void save_results_to_csv(
     const char* csv_filename_base,
     const ExperimentResult* results_array,
-    const int* n_sizes_arr,
     int num_n_values
 );
 
@@ -38,7 +37,6 @@ void generate_gnuplot_script(
 void generate_latex_table(
     const char* latex_filename_base,
     const ExperimentResult* results_array,
-    const int* n_sizes_arr,
     int num_n_values,
     bool use_longtable
 );

@@ -44,8 +44,8 @@ run: all
 
 plots: run
 	@echo "Generating plots using Gnuplot..."
-	@SCRIPT_FILE_PATTERN="$(SCRIPT_DIR)/plot_tridiag_*.gp" # Adjusted pattern
-	@for gp_script in $$(ls $${SCRIPT_FILE_PATTERN} 2>/dev/null); do \
+	@# plot_tridiag_* is an adjusted pattern
+	@for gp_script in $(wildcard $(SCRIPT_DIR)/plot_tridiag_*.gp); do \
 		echo "  Executing Gnuplot script: $$gp_script"; \
 		gnuplot "$$gp_script" || echo "  Gnuplot failed for $$gp_script"; \
 	done
@@ -55,14 +55,16 @@ tables: run
 	@echo "LaTeX tables generated in $(LATEX_DIR)/ directory by the C program."
 	@echo "Compile them with a LaTeX distribution (e.g., pdflatex your_report.tex)."
 
+# Missaligned comments in the command below might seem like an error but they are made so that it looks corrent in the terminal
+
 clean:
 	@echo "Cleaning temporary and generated files..."
 	rm -f $(OBJ_DIR)/*.o
 	rm -f $(EXECUTABLE)
-	rm -f $(DATA_DIR)/tridiag_*.csv       # Adjusted pattern
-	rm -f $(PLOTS_DIR)/tridiag_*.png      # Adjusted pattern
-	rm -f $(SCRIPT_DIR)/plot_tridiag_*.gp # Adjusted pattern
-	rm -f $(LATEX_DIR)/table_tridiag_*.tex # Adjusted pattern
+	rm -f $(DATA_DIR)/tridiag_*.csv       		# Adjusted pattern
+	rm -f $(PLOTS_DIR)/tridiag_*.png      		# Adjusted pattern
+	rm -f $(SCRIPT_DIR)/plot_tridiag_*.gp 	# Adjusted pattern
+	rm -f $(LATEX_DIR)/table_tridiag_*.tex 	# Adjusted pattern
 	@echo "Cleaning finished."
 
 distclean: clean

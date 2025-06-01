@@ -20,7 +20,7 @@ int main() {
     char filename_base[100];
     sprintf(filename_base, "tridiag_m%.0f_k%.0f_results", M_PARAM, K_PARAM);
 
-    save_results_to_csv(filename_base, all_results, n_sizes_for_exp, n_values_count);
+    save_results_to_csv(filename_base, all_results, n_values_count);
 
     char csv_full_path[128];
     sprintf(csv_full_path, "data/%s.csv", filename_base);
@@ -34,7 +34,7 @@ int main() {
 
     char latex_table_base[100];
     sprintf(latex_table_base, "table_tridiag_m%.0f_k%.0f", M_PARAM, K_PARAM);
-    generate_latex_table(latex_table_base, all_results, n_sizes_for_exp, n_values_count, false); // Short table
+    generate_latex_table(latex_table_base, all_results, n_values_count, false); // Short table
 
     // For a long table, you can call it again with a different filename suffix and true
     // char latex_table_base_long[110];
