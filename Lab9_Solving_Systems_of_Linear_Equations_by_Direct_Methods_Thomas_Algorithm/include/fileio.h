@@ -27,7 +27,8 @@ void save_results_to_csv(
     int num_n_values
 );
 
-void generate_gnuplot_script(
+// Updated function declaration
+void generate_gnuplot_scripts(
     const char* csv_filepath,
     const char* gnuplot_script_filename_base,
     const char* plot_filename_base,

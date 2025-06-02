@@ -1,20 +1,24 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+// Najpierw standardowe nagłówki, które mogą definiować malloc/free/calloc
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h> // Definiuje standardowe malloc, free, calloc
 #include <math.h>
 #include <string.h>
 #include <stdbool.h>
 #include <float.h>
 #include <time.h>
 
+// TERAZ dołącz tracker, który (jeśli MEMORY_TRACKING_ENABLED) nadpisze malloc/free/calloc makrami
+#include "memory_tracker.h"
+
 // ----- Task Specific Constants -----
 #define M_PARAM 4.0
 #define K_PARAM 5.0
 #define N_MIN 2
-#define N_MAX 500
-#define FIXED_SEED 30 // Seed for generating x_true
+#define N_MAX 500 // Można zmniejszyć do testów, np. 50
+#define FIXED_SEED 30
 
 // ----- Core Structures -----
 typedef struct {
@@ -35,20 +39,27 @@ typedef struct {
     // Gaussian Elimination (Full Matrix)
     double err_gauss_f32;
     double time_gauss_f32_sec;
+    double mem_gauss_f32_kb; // Dynamic peak memory
     double err_gauss_f64;
     double time_gauss_f64_sec;
+    double mem_gauss_f64_kb; // Dynamic peak memory
 
-    // Thomas Algorithm (Banded Matrix nx3)
-    double err_thomas_f32;
-    double time_thomas_f32_sec;
-    double err_thomas_f64;
-    double time_thomas_f64_sec;
+    // Thomas Algorithm (Banded Matrix Nx3 storage)
+    double err_thomas_banded_f32;
+    double time_thomas_banded_f32_sec;
+    double mem_thomas_banded_f32_kb; // Dynamic peak memory
+    double err_thomas_banded_f64;
+    double time_thomas_banded_f64_sec;
+    double mem_thomas_banded_f64_kb; // Dynamic peak memory
 
-    // Theoretical Memory for Matrix A storage (in KB)
-    double mem_gauss_f32_kb;
-    double mem_thomas_f32_kb;
-    double mem_gauss_f64_kb;
-    double mem_thomas_f64_kb;
+    // Thomas Algorithm (Full Matrix NxN storage, then conversion for solve)
+    double err_thomas_full_f32;
+    double time_thomas_full_f32_sec;
+    double mem_thomas_full_f32_kb; // Dynamic peak memory
+    double err_thomas_full_f64;
+    double time_thomas_full_f64_sec;
+    double mem_thomas_full_f64_kb; // Dynamic peak memory
+
 } ExperimentResult;
 
 // ----- Utility Macros -----
@@ -56,6 +67,7 @@ typedef struct {
 do { \
 if (!(ptr)) { \
 fprintf(stderr, "ERROR: Memory allocation failed for %s in %s at line %d.\n", msg, __FILE__, __LINE__); \
+/* mem_tracker_print_stats("CHECK_ALLOC_FAIL"); // Opcjonalnie, jeśli chcesz zobaczyć stan trackera */ \
 exit(EXIT_FAILURE); \
 } \
 } while (0)

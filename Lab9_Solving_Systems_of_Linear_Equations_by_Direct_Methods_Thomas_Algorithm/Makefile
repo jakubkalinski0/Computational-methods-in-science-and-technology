@@ -1,5 +1,7 @@
 CC = gcc
-CFLAGS_BASE = -Wall -Wextra -Iinclude -g
+# -DMEMORY_TRACKING_ENABLED włącza nasz memory tracker
+# Możesz to usunąć, aby wyłączyć śledzenie i użyć standardowego malloc/free
+CFLAGS_BASE = -Wall -Wextra -Iinclude -g -DMEMORY_TRACKING_ENABLED
 CFLAGS_OPT = -O2
 CFLAGS = $(CFLAGS_BASE) $(CFLAGS_OPT) -std=c99
 LDFLAGS = -lm
@@ -14,12 +16,15 @@ SCRIPT_DIR = scripts
 LATEX_DIR = latex_out
 INCLUDE_DIR = include
 
-# Source and object files
-SOURCES = $(wildcard $(SRC_DIR)/*.c)
-OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SOURCES))
+# Pliki źródłowe .c (wszystkie w src/)
+# memory_tracker.c powinien być w src/
+SOURCES_ALL = $(wildcard $(SRC_DIR)/*.c)
+OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SOURCES_ALL))
+
+# Pliki nagłówkowe .h (wszystkie w include/)
 HEADERS = $(wildcard $(INCLUDE_DIR)/*.h)
 
-EXECUTABLE = $(BIN_DIR)/tridiagonal_solver
+EXECUTABLE = $(BIN_DIR)/tridiagonal_solver_dynmem
 
 .PHONY: all directories run plots tables clean distclean help
 
@@ -29,6 +34,8 @@ directories:
 	@echo "Creating directories..."
 	@mkdir -p $(OBJ_DIR) $(BIN_DIR) $(DATA_DIR) $(PLOTS_DIR) $(SCRIPT_DIR) $(LATEX_DIR)
 
+# Reguła kompilacji dla plików .c z src/ do obj/
+# Zależność od $(HEADERS) zapewnia rekompilację, jeśli jakikolwiek nagłówek w include/ się zmieni.
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c $(HEADERS)
 	@echo "Compiling $< -> $@"
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -44,8 +51,8 @@ run: all
 
 plots: run
 	@echo "Generating plots using Gnuplot..."
-	@# plot_tridiag_* is an adjusted pattern
-	@for gp_script in $(wildcard $(SCRIPT_DIR)/plot_tridiag_*.gp); do \
+	@# Użyj nazwy pliku z main.c
+	@for gp_script in $(wildcard $(SCRIPT_DIR)/plot_tridiag_*_dynmem_v2.gp); do \
 		echo "  Executing Gnuplot script: $$gp_script"; \
 		gnuplot "$$gp_script" || echo "  Gnuplot failed for $$gp_script"; \
 	done
@@ -55,16 +62,14 @@ tables: run
 	@echo "LaTeX tables generated in $(LATEX_DIR)/ directory by the C program."
 	@echo "Compile them with a LaTeX distribution (e.g., pdflatex your_report.tex)."
 
-# Missaligned comments in the command below might seem like an error but they are made so that it looks corrent in the terminal
-
 clean:
 	@echo "Cleaning temporary and generated files..."
 	rm -f $(OBJ_DIR)/*.o
 	rm -f $(EXECUTABLE)
-	rm -f $(DATA_DIR)/tridiag_*.csv       		# Adjusted pattern
-	rm -f $(PLOTS_DIR)/tridiag_*.png      		# Adjusted pattern
-	rm -f $(SCRIPT_DIR)/plot_tridiag_*.gp 	# Adjusted pattern
-	rm -f $(LATEX_DIR)/table_tridiag_*.tex 	# Adjusted pattern
+	rm -f $(DATA_DIR)/tridiag_*_dynmem_v2.csv
+	rm -f $(PLOTS_DIR)/tridiag_*_dynmem_v2.png
+	rm -f $(SCRIPT_DIR)/plot_tridiag_*_dynmem_v2.gp
+	rm -f $(LATEX_DIR)/table_tridiag_*_dynmem_v2.txt
 	@echo "Cleaning finished."
 
 distclean: clean
