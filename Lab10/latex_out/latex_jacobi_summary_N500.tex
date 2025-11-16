@@ -1,0 +1,21 @@
+% LaTeX table: Jacobi Solver Experiment Results (N=500)
+\begin{table}[H]
+\centering
+\caption{Jacobi Solver Experiment Results for N=500 \label{tab:latex_jacobi_summary_N500}}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcrccc}
+\toprule
+$x_0$ Type & Criterion & $\rho$ & Iterations & Error ($||x-x_{true}||_{\infty}$) & $T_{iter}$ (s) \\
+\midrule
+Zeros & Increment & 1.00e-08 & 14 & 5.72e-11 & 3.06e-04 \\
+Zeros & Increment & 1.00e-12 & 19 & 1.54e-14 & 3.39e-04 \\
+Zeros & Residual & 1.00e-08 & 14 & 5.72e-11 & 6.81e-04 \\
+Zeros & Residual & 1.00e-12 & 19 & 1.54e-14 & 6.96e-04 \\
+AltHigh & Increment & 1.00e-08 & 17 & 1.89e-11 & 3.34e-04 \\
+AltHigh & Increment & 1.00e-12 & 22 & 5.55e-15 & 3.38e-04 \\
+AltHigh & Residual & 1.00e-08 & 17 & 1.89e-11 & 6.56e-04 \\
+AltHigh & Residual & 1.00e-12 & 22 & 5.55e-15 & 6.62e-04 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

@@ -15,21 +15,19 @@ void save_results_to_csv(
     int num_sizes
 );
 
-// --- Zmienione deklaracje funkcji generujących skrypty Gnuplota ---
-// Generuje skrypt Gnuplot dla wyników macierzy A_I.
+// Generate Gnuplot Script for results of A_I.
 void generate_gnuplot_script_A_I(
-    const char* csv_filename, // np. "data/results_A_I.csv"
-    const char* plot_dir,     // np. "plots"
-    const char* script_dir    // np. "scripts"
+    const char* csv_filename,
+    const char* plot_dir,
+    const char* script_dir
 );
 
-// Generuje skrypt Gnuplot dla wyników macierzy A_II.
+// Generate Gnuplot Script for results of A_II.
 void generate_gnuplot_script_A_II(
-    const char* csv_filename, // np. "data/results_A_II.csv"
-    const char* plot_dir,     // np. "plots"
-    const char* script_dir    // np. "scripts"
+    const char* csv_filename,
+    const char* plot_dir,
+    const char* script_dir
 );
-// --- Koniec zmian w deklaracjach ---
 
 // Generate Gnuplot script for comparing condition numbers of A_I and A_II.
 void generate_gnuplot_script_comparison(
